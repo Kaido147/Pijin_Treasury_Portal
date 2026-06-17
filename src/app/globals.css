@@ -1,0 +1,222 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 16px;
+  --font-sans: 'Nunito', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --background: #f0f4f8;
+  --foreground: #0d1b2a;
+  --card: #ffffff;
+  --card-foreground: #0d1b2a;
+  --popover: #ffffff;
+  --popover-foreground: #0d1b2a;
+  --primary: #0d1b2a;
+  --primary-foreground: #ffffff;
+  --secondary: #e8edf3;
+  --secondary-foreground: #0d1b2a;
+  --muted: #e8edf3;
+  --muted-foreground: #64748b;
+  --accent: #dbeafe;
+  --accent-foreground: #1e3a5f;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #d1dae6;
+  --input: transparent;
+  --input-background: #f8fafc;
+  --switch-background: #cbd5e1;
+  --font-weight-medium: 600;
+  --font-weight-normal: 400;
+  --ring: #93c5fd;
+  --chart-1: #0d1b2a;
+  --chart-2: #3b82f6;
+  --chart-3: #10b981;
+  --chart-4: #f59e0b;
+  --chart-5: #ef4444;
+  --radius: 1rem;
+  --sidebar: #0d1b2a;
+  --sidebar-foreground: #cbd5e1;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #0d1b2a;
+  --sidebar-accent: rgba(255, 255, 255, 0.07);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.07);
+  --sidebar-ring: #93c5fd;
+}
+
+.dark {
+  --background: #0a0a0f;
+  --foreground: #f1f5f9;
+  --card: #131318;
+  --card-foreground: #f1f5f9;
+  --popover: #131318;
+  --popover-foreground: #f1f5f9;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --secondary: #1e293b;
+  --secondary-foreground: #f1f5f9;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #1e40af;
+  --accent-foreground: #f1f5f9;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #1e293b;
+  --input: #1e293b;
+  --ring: #3b82f6;
+  --font-weight-medium: 600;
+  --font-weight-normal: 400;
+  --chart-1: #3b82f6;
+  --chart-2: #10b981;
+  --chart-3: #f59e0b;
+  --chart-4: #8b5cf6;
+  --chart-5: #ef4444;
+  --sidebar: #0d1b2a;
+  --sidebar-foreground: #cbd5e1;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #0d1b2a;
+  --sidebar-accent: rgba(255, 255, 255, 0.07);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.07);
+  --sidebar-ring: #93c5fd;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* ── Navy palette ──────────────────────────────────── */
+  --color-navy-950: #0B0F19;
+  --color-navy-900: #0d1b2a;
+  --color-navy-800: #0F1422;
+  --color-navy-700: #1e3a5f;
+  --color-navy-500: #1d4ed8;
+
+  /* ── Surface palette (backgrounds & borders) ───────── */
+  --color-surface: #f0f4f8;
+  --color-surface-raised: #e8edf3;
+  --color-border-default: #d1dae6;
+
+  /* ── Custom shadows ────────────────────────────────── */
+  --shadow-card: 0 2px 12px rgba(13,27,42,0.06), 0 1px 3px rgba(13,27,42,0.04);
+  --shadow-card-lg: 0 8px 32px rgba(13,27,42,0.10), 0 2px 8px rgba(13,27,42,0.06);
+  --shadow-btn: 0 4px 16px rgba(13,27,42,0.20);
+  --shadow-btn-lg: 0 4px 24px rgba(13,27,42,0.28), 0 1px 4px rgba(13,27,42,0.12);
+  --shadow-hero: 0 16px 48px rgba(13,27,42,0.22), 0 4px 12px rgba(13,27,42,0.10);
+  --shadow-landing: 0 24px 64px rgba(13,27,42,0.12), 0 4px 16px rgba(13,27,42,0.06);
+  --shadow-table: 0 4px 20px rgba(13,27,42,0.08);
+
+  /* ── Font families ─────────────────────────────────── */
+  --font-sans: 'Nunito', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Nunito', system-ui, sans-serif;
+  }
+
+  html {
+    font-size: var(--font-size);
+  }
+
+  h1 {
+    font-size: var(--text-2xl);
+    font-weight: 700;
+    line-height: 1.3;
+    font-family: 'Nunito', system-ui, sans-serif;
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+    font-weight: 700;
+    line-height: 1.3;
+    font-family: 'Nunito', system-ui, sans-serif;
+  }
+
+  h3 {
+    font-size: var(--text-lg);
+    font-weight: 600;
+    line-height: 1.4;
+    font-family: 'Nunito', system-ui, sans-serif;
+  }
+
+  h4 {
+    font-size: var(--text-base);
+    font-weight: 600;
+    line-height: 1.5;
+    font-family: 'Nunito', system-ui, sans-serif;
+  }
+
+  label {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    line-height: 1.5;
+  }
+
+  button {
+    font-size: var(--text-base);
+    font-weight: 600;
+    line-height: 1.5;
+  }
+
+  input {
+    font-size: var(--text-base);
+    font-weight: 400;
+    line-height: 1.5;
+  }
+
+  /* Hide scrollbars until hover */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  *:hover {
+    scrollbar-color: #d1dae6 transparent;
+  }
+}
