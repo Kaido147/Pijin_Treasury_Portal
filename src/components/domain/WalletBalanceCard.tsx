@@ -37,11 +37,11 @@ export function WalletBalanceCard({
 
         {/* Balance */}
         <div className="mb-6">
-          <div className="font-mono font-semibold text-[2.75rem] text-white leading-none tracking-tight">
-            {walletInfo.balance}
+          <div className="font-mono font-bold text-5xl text-white leading-none tracking-tight">
+            {walletInfo.balancePhp}
           </div>
           <div className="text-white/40 text-[0.85rem] mt-2">
-            XLM · ≈ {walletInfo.balanceUsd} USD
+            {walletInfo.balanceXlm} XLM
           </div>
         </div>
 

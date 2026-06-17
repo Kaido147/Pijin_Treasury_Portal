@@ -176,8 +176,8 @@ export function getMockStats(): StatMetric[] {
 export function getMockWalletInfo(): WalletInfo {
   return {
     address: ADMIN_ADDRESS,
-    balance: '24,891.45',
-    balanceUsd: '$3,235.87',
+    balancePhp: '₱144,370.41',
+    balanceXlm: '24,891.45',
     change24h: '+128.40 XLM',
     fundedNodes: '14 active',
     totalDistributed: '1.2M XLM',
