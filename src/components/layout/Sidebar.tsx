@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { LogOut, ChevronRight } from 'lucide-react';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
 import { NAV_ITEMS } from '@/core/constants';
 import { cn } from '@/core/utils';
 
@@ -13,6 +14,7 @@ interface SidebarProps {
 export function Sidebar({ isOpen }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { disconnect } = useStellarWallet();
 
   const isActive = (href: string, exact: boolean) =>
     exact ? pathname === href : pathname.startsWith(href);
@@ -86,7 +88,10 @@ export function Sidebar({ isOpen }: SidebarProps) {
       <div className="px-3 py-4 border-t border-white/[0.07] min-w-60">
         <button
           id="disconnect-wallet-btn"
-          onClick={() => router.push('/')}
+          onClick={async () => {
+            await disconnect();
+            router.push('/');
+          }}
           className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-150 bg-transparent hover:bg-white/[0.07]"
         >
           <LogOut className="w-4 h-4 text-white/35" />
