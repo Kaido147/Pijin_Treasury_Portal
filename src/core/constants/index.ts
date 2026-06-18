@@ -101,6 +101,10 @@ export const STELLAR_ADDRESSES = [
 export const ADMIN_ADDRESS =
   'GBRMB7MFPND5JLXDTUKJBWWKUVCLMKNM3MJ2QGJCYZLBM6OBG6HRWKN';
 
+// ─── Exchange Rates ─────────────────────────────────────
+/** XLM → PHP conversion rate. Update periodically from live feed. */
+export const XLM_TO_PHP_RATE = 5.80;
+
 export const TRANSACTION_MEMOS = [
   'Node funding · SEA-01',
   'Node funding · SEA-02',

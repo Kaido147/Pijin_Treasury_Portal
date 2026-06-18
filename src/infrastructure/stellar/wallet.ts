@@ -1,19 +1,19 @@
 // ═══════════════════════════════════════════════════════════
 // Pijin Treasury — Stellar Wallet Adapter
 //
-// This module provides the abstract interface for connecting
-// to Stellar wallets. Currently returns mock state for
-// development on testnet.
-//
-// Production Integration Roadmap:
-// ──────────────────────────────
-// 1. Install:  npm install @stellar/stellar-sdk @stellar/freighter-api
-// 2. Replace mockWalletAdapter with freighterAdapter (scaffolded below)
-// 3. Add Soroban RPC client for smart contract interactions
-// 4. Wire up real balance polling via Horizon server
+// Provides the abstract WalletAdapter interface and two
+// concrete implementations:
+//   • mockWalletAdapter  — static dev data, no extension needed
+//   • freighterAdapter   — live Freighter browser extension + Horizon
 // ═══════════════════════════════════════════════════════════
 
+import { isConnected, requestAccess, getAddress } from '@stellar/freighter-api';
+import { Horizon } from '@stellar/stellar-sdk';
 import { ADMIN_ADDRESS } from '@/core/constants';
+
+// ─── Constants ──────────────────────────────────────────
+
+const HORIZON_TESTNET_URL = 'https://horizon-testnet.stellar.org';
 
 // ─── Adapter Interface ──────────────────────────────────
 
@@ -26,6 +26,15 @@ export interface WalletAdapter {
 
   /** Fetch the current XLM balance for a given public key */
   getBalance: (publicKey: string) => Promise<number>;
+}
+
+// ─── Horizon Helper ─────────────────────────────────────
+
+async function fetchXlmBalance(publicKey: string): Promise<number> {
+  const server = new Horizon.Server(HORIZON_TESTNET_URL);
+  const account = await server.loadAccount(publicKey);
+  const native = account.balances.find((b) => b.asset_type === 'native');
+  return parseFloat(native?.balance ?? '0');
 }
 
 // ─── Mock Adapter (Development) ─────────────────────────
@@ -55,44 +64,48 @@ export const mockWalletAdapter: WalletAdapter = {
   },
 };
 
-// ─── Freighter Adapter (Production — Scaffolded) ────────
-//
-// Uncomment and configure when ready for real wallet integration.
-//
-// import freighter from '@stellar/freighter-api';
-// import { Horizon } from '@stellar/stellar-sdk';
-//
-// const HORIZON_URL = 'https://horizon-testnet.stellar.org';
-//
-// export const freighterAdapter: WalletAdapter = {
-//   connect: async () => {
-//     const publicKey = await freighter.getPublicKey();
-//     const server = new Horizon.Server(HORIZON_URL);
-//     const account = await server.loadAccount(publicKey);
-//     const xlmBalance = account.balances.find(
-//       (b) => b.asset_type === 'native',
-//     );
-//     return {
-//       publicKey,
-//       balance: parseFloat(xlmBalance?.balance ?? '0'),
-//     };
-//   },
-//
-//   disconnect: async () => {
-//     // Freighter doesn't expose a disconnect API.
-//     // Clear local app state only.
-//   },
-//
-//   getBalance: async (publicKey) => {
-//     const server = new Horizon.Server(HORIZON_URL);
-//     const account = await server.loadAccount(publicKey);
-//     const xlmBalance = account.balances.find(
-//       (b) => b.asset_type === 'native',
-//     );
-//     return parseFloat(xlmBalance?.balance ?? '0');
-//   },
-// };
-//
+// ─── Freighter Adapter (Production) ─────────────────────
+
+/**
+ * Live Freighter wallet adapter.
+ *
+ * Network validation (testnet gate) is enforced by the
+ * useStellarWallet hook before connect() is called.
+ * This adapter stays network-agnostic and testable in isolation.
+ */
+export const freighterAdapter: WalletAdapter = {
+  connect: async () => {
+    const connected = await isConnected();
+    if (!connected) {
+      throw new Error('Freighter extension not found. Install it from freighter.app.');
+    }
+
+    const accessResult = await requestAccess();
+    if (accessResult.error) {
+      throw new Error(`Freighter access denied: ${accessResult.error}`);
+    }
+
+    const addrResult = await getAddress();
+    if (addrResult.error) {
+      throw new Error(`Could not retrieve public key: ${addrResult.error}`);
+    }
+
+    const publicKey = addrResult.address;
+    const balance = await fetchXlmBalance(publicKey);
+
+    return { publicKey, balance };
+  },
+
+  disconnect: async () => {
+    // Freighter exposes no disconnect API.
+    // Hook clears local state; nothing to do here.
+  },
+
+  getBalance: async (publicKey: string) => {
+    return fetchXlmBalance(publicKey);
+  },
+};
+
 // ─── Soroban RPC (Future — Smart Contracts) ─────────────
 //
 // import { SorobanRpc } from '@stellar/stellar-sdk';

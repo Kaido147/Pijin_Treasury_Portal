@@ -10,7 +10,7 @@ interface TopbarProps {
 }
 
 export function Topbar({ isSidebarOpen, onToggleSidebar }: TopbarProps) {
-  const { isConnected, isConnecting, publicKey, balance, connect } =
+  const { isConnected, isConnecting, publicKey, connect } =
     useStellarWallet();
 
   return (
@@ -41,13 +41,7 @@ export function Topbar({ isSidebarOpen, onToggleSidebar }: TopbarProps) {
         {/* Wallet state — conditional rendering */}
         {isConnected && publicKey ? (
           <>
-            {/* Balance pill */}
-            <div className="px-2.5 py-1 rounded-lg bg-surface-raised">
-              <span className="text-navy-900 text-xs font-mono font-semibold">
-                {balance.toLocaleString()} XLM
-              </span>
-            </div>
-            {/* Truncated address avatar */}
+            {/* Truncated address avatar — balance removed */}
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-border-default">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               <span className="text-slate-500 text-[0.7rem] font-mono font-medium">

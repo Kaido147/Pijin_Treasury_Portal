@@ -2,16 +2,31 @@
 
 import { RefreshCw } from "lucide-react";
 import { useNetworkHealth } from "@/hooks/useNetworkHealth";
-import { STAT_ICON_MAP } from "@/core/constants";
+import { useStellarWallet } from "@/hooks/useStellarWallet";
+import { STAT_ICON_MAP, XLM_TO_PHP_RATE } from "@/core/constants";
 import { StatCard } from "@/components/domain/StatCard";
 import { WalletBalanceCard } from "@/components/domain/WalletBalanceCard";
 import { NetworkHealthPanel } from "@/components/domain/NetworkHealthPanel";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
 import { cn } from "@/core/utils";
+import type { WalletInfo } from "@/core/types";
 
 export default function CommandCenterPage() {
-  const { services, stats, walletInfo, isRefreshing, refresh, lastUpdated } =
+  const { services, stats, isRefreshing, refresh, lastUpdated } =
     useNetworkHealth();
+
+  const { isConnected, publicKey, balance } = useStellarWallet();
+
+  const phpValue = balance * XLM_TO_PHP_RATE;
+
+  const liveWalletInfo: WalletInfo = {
+    address: publicKey ?? '—',
+    balancePhp: `₱${phpValue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    balanceXlm: balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    change24h: '—',
+    fundedNodes: '—',
+    totalDistributed: '—',
+  };
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -37,7 +52,7 @@ export default function CommandCenterPage() {
         </button>
       </div>
 
-      <WalletBalanceCard walletInfo={walletInfo} isConnected={true} />
+      <WalletBalanceCard walletInfo={liveWalletInfo} isConnected={isConnected} />
 
       {/* KPI stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -58,10 +73,7 @@ export default function CommandCenterPage() {
           })}
       </div>
 
-      {/* Hero row: wallet card + network health */}
-
       <NetworkHealthPanel services={services} />
     </div>
-
   );
 }

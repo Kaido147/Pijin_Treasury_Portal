@@ -19,8 +19,8 @@ export interface WalletState {
 /** Wallet summary data displayed on the Command Center hero card */
 export interface WalletInfo {
   address: string;
-  balance: string;
-  balanceUsd: string;
+  balancePhp: string;
+  balanceXlm: string;
   change24h: string;
   fundedNodes: string;
   totalDistributed: string;
