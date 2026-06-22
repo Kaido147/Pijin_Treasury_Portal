@@ -7,49 +7,74 @@
 
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { GatewayNode } from '@/core/types';
-import { getMockGatewayNodes } from '@/infrastructure/api/mockData';
 
 export interface UseGatewayNodesReturn {
-  /** Current list of gateway nodes */
   nodes: GatewayNode[];
-  /** Register a new node (simulated with delay) */
   addNode: (data: { name: string; address: string; region: string }) => void;
-  /** True while a registration request is in-flight */
   isSubmitting: boolean;
-  /** True for 2s after a successful registration */
   isSuccess: boolean;
-  /** Reset the form state back to idle */
   resetForm: () => void;
+  isLoading: boolean;
+  error: string | null;
 }
 
-/**
- * Provides gateway node data and registration actions.
- *
- * Usage:
- * ```tsx
- * const { nodes, addNode, isSubmitting, isSuccess, resetForm } = useGatewayNodes();
- * ```
- *
- * When replacing mock with real API:
- * - Swap `getMockGatewayNodes()` with a fetch call
- * - Swap the `setTimeout` in `addNode` with a POST request
- * - No component changes required
- */
 export function useGatewayNodes(): UseGatewayNodesReturn {
-  const [nodes, setNodes] = useState<GatewayNode[]>(() => getMockGatewayNodes());
+  const [nodes, setNodes] = useState<GatewayNode[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const addNode = useCallback(
-    (data: { name: string; address: string; region: string }) => {
-      setIsSubmitting(true);
+  // Fetch nodes on mount and optionally poll
+  useEffect(() => {
+    let isMounted = true;
 
-      // Simulate network delay for node registration
+    async function fetchNodes() {
+      try {
+        setIsLoading(true);
+        const res = await fetch('/api/gateways/health');
+        if (!res.ok) throw new Error('Failed to fetch gateway nodes');
+        
+        const data: GatewayNode[] = await res.json();
+        if (isMounted) {
+          setNodes(data);
+          setError(null);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Unknown error');
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    fetchNodes();
+
+    // Optional: Poll every 30 seconds
+    const interval = setInterval(fetchNodes, 30000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const addNode = useCallback(
+    async (data: { name: string; address: string; region: string }) => {
+      setIsSubmitting(true);
+      
+      // Note: If you want to persist custom user-added nodes, you would add a POST
+      // to /api/gateways/health (or another route) here and save it to a DB.
+      // For now, we simulate adding it to local state so the UI still works.
       setTimeout(() => {
         const newNode: GatewayNode = {
-          id: `node-${String(nodes.length + 1).padStart(3, '0')}`,
+          id: `node-${Date.now()}`,
           name: data.name,
           address: data.address,
           region: data.region || 'SEA-XX',
@@ -62,13 +87,12 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
         setIsSubmitting(false);
         setIsSuccess(true);
 
-        // Auto-dismiss success state after 2s
         setTimeout(() => {
           setIsSuccess(false);
         }, 2000);
-      }, 1800);
+      }, 1000);
     },
-    [nodes.length],
+    []
   );
 
   const resetForm = useCallback(() => {
@@ -82,5 +106,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
     isSubmitting,
     isSuccess,
     resetForm,
+    isLoading,
+    error
   };
 }
