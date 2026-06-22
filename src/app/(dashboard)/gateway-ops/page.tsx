@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { cn } from "@/core/utils";
 
 export default function GatewayOpsPage() {
-  const { nodes, addNode, isSubmitting, isSuccess } = useGatewayNodes();
+  const { nodes, addNode, isSubmitting, isSuccess, isLoading, error } = useGatewayNodes();
   const [showRegisterForm, setShowRegisterForm] = useState(false);
 
   // Calculate stats dynamically
@@ -23,7 +23,7 @@ export default function GatewayOpsPage() {
         <div>
           <h1 className="text-navy-900 font-extrabold text-2xl">Gateway Operations</h1>
           <p className="text-slate-500 text-sm mt-0.5 font-medium">
-            {activeNodesCount} of {totalNodesCount} nodes active
+            {isLoading ? "Loading..." : `${activeNodesCount} of ${totalNodesCount} nodes active`}
           </p>
         </div>
 
@@ -51,9 +51,20 @@ export default function GatewayOpsPage() {
         />
       )}
 
+      {/* Error State */}
+      {error && (
+        <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-200">
+          Failed to load gateway nodes: {error}
+        </div>
+      )}
+
       {/* Node List (Spans full width, stacked in a column with space-y-3) */}
       <div className="space-y-3">
-        {nodes.length === 0 ? (
+        {isLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy-900"></div>
+          </div>
+        ) : nodes.length === 0 && !error ? (
           <EmptyState
             icon={Server}
             title="No nodes registered"
