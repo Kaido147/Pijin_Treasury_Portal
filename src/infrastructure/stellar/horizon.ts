@@ -5,7 +5,7 @@
 // network directly via REST API.
 // ═══════════════════════════════════════════════════════════
 
-const HORIZON_URL = process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'testnet'
+const HORIZON_URL = process.env.STELLAR_HORIZON_MAINNET_URL === 'mainnet'
   ? 'https://horizon-testnet.stellar.org'
   : 'https://horizon.stellar.org';
 
