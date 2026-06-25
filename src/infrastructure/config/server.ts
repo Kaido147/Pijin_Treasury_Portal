@@ -20,15 +20,15 @@ export const INFRASTRUCTURE_SERVERS: InfrastructureServer[] = [
         id: 'node-backend-001',
         name: 'Next.js Backend (Gas Payer)',
         type: 'backend',
-        healthUrl: process.env.NEXT_PUBLIC_BACKEND_URL || '',
+        healthUrl: process.env.BACKEND_URL || '',
         region: 'Global',
-        stellarPublicKey: process.env.NEXT_PUBLIC_STELLAR_KEY || '',
+        stellarPublicKey: process.env.RELAYER_PUBLIC_KEY || '',
     },
     {
         id: 'node-textbee-001',
         name: 'Textbee SMS Server',
         type: 'sms_gateway',
-        healthUrl: process.env.NEXT_PUBLIC_TEXTBEE_URL || '',
+        healthUrl: process.env.TEXTBEE_GATEWAY_URL || '',
         region: 'Global',
     },
 ];
