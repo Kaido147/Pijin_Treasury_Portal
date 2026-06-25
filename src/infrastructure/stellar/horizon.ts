@@ -13,7 +13,7 @@ const HORIZON_URL = process.env.STELLAR_HORIZON_TESTNET_URL;
  * @param publicKey The Stellar public key to check.
  * @returns The XLM balance as a string, or '0.00' if it cannot be retrieved.
  */
-export async function fetchStellarBalance(publicKey: string): Promise<string> {
+export async function fetchStellarBalance(publicKey: string, signal?: AbortSignal): Promise<string> {
   if (!publicKey) return '0.00';
 
   try {
