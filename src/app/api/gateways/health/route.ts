@@ -39,10 +39,16 @@ export async function GET() {
 
         // 2. Fetch Stellar Balance if applicable
         if (server.stellarPublicKey) {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
           try {
-            balance = await fetchStellarBalance(server.stellarPublicKey);
+            balance = await fetchStellarBalance(server.stellarPublicKey,
+            controller.signal,
+            );
           } catch (error) {
             console.error(`Balance check failed for ${server.name}:`, error);
+          } finally {
+            clearTimeout(timeoutId);
           }
         } else if (server.type === 'sms_gateway') {
           balance = 'N/A'; // SMS Gateway doesn't hold XLM
