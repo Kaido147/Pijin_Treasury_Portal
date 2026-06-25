@@ -19,7 +19,7 @@ export interface UseGatewayNodesReturn {
   isLoading: boolean;
   error: string | null;
 }
-
+  
 export function useGatewayNodes(): UseGatewayNodesReturn {
   const [nodes, setNodes] = useState<GatewayNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,9 +32,11 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
   useEffect(() => {
     let isMounted = true;
 
-    async function fetchNodes() {
+    async function fetchNodes(initialLoad: boolean = false) {
       try {
-        setIsLoading(true);
+        if (initialLoad) {
+          setIsLoading(true);
+        }
         const res = await fetch('/api/gateways/health');
         if (!res.ok) throw new Error('Failed to fetch gateway nodes');
         
