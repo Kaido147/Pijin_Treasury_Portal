@@ -5,9 +5,7 @@
 // network directly via REST API.
 // ═══════════════════════════════════════════════════════════
 
-const HORIZON_URL = process.env.STELLAR_HORIZON_MAINNET_URL === 'mainnet'
-  ? 'https://horizon-testnet.stellar.org'
-  : 'https://horizon.stellar.org';
+const HORIZON_URL = process.env.STELLAR_HORIZON_TESTNET_URL;
 
 /**
  * Fetches the live XLM balance for a given Stellar public key.
