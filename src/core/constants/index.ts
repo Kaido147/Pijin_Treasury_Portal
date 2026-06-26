@@ -6,7 +6,6 @@
 import {
   LayoutDashboard,
   Server,
-  Coins,
   FileText,
   Wifi,
   Loader2,
@@ -33,8 +32,8 @@ import type {
 export const NAV_ITEMS: NavItem[] = [
   { href: '/command-center', label: 'Command Center', icon: LayoutDashboard, exact: true },
   { href: '/gateway-ops', label: 'Gateway Ops', icon: Server, exact: false },
-  { href: '/fund-node', label: 'Fund Agent Node', icon: Coins, exact: false },
   { href: '/ledger', label: 'Transaction Ledger', icon: FileText, exact: false },
+
 ];
 
 // ─── Gateway Node Status ────────────────────────────────

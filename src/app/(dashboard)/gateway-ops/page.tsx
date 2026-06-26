@@ -7,13 +7,43 @@ import { GatewayNodeCard } from "@/components/domain/GatewayNodeCard";
 import { RegisterNodeForm } from "@/components/domain/RegisterNodeForm";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { cn } from "@/core/utils";
+import { useTransfer } from "@/hooks/useTransfer";
+import { TransferForm } from "@/components/domain/TransferForm";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 export default function GatewayOpsPage() {
   const { nodes, addNode, isSubmitting, isSuccess } = useGatewayNodes();
   const [showRegisterForm, setShowRegisterForm] = useState(false);
 
+  // Fund-node modal state
+  const [fundDialogOpen, setFundDiaglogOpen] = useState<boolean>(false);
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
+  const { formState, txHash, submitTransfer, resetTransfer } = useTransfer();
+
+  const handleFundClick = (address: string): void => {
+    setSelectedAddress(address);
+    setFundDiaglogOpen(true);
+  };
+
+  const handleDialogClose = (open: boolean): void => {
+    setFundDiaglogOpen(open);
+    if (!open) {
+      // Reset Form state when dialog is dismissed
+      resetTransfer();
+      setSelectedAddress(null);
+    }
+  };
+
   // Calculate stats dynamically
-  const activeNodesCount = nodes.filter((node) => node.status === "active").length;
+  const activeNodesCount = nodes.filter(
+    (node) => node.status === "active",
+  ).length;
   const totalNodesCount = nodes.length;
 
   return (
@@ -21,7 +51,9 @@ export default function GatewayOpsPage() {
       {/* Page header with dynamic count & register button */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-navy-900 font-extrabold text-2xl">Gateway Operations</h1>
+          <h1 className="text-navy-900 font-extrabold text-2xl">
+            Gateway Operations
+          </h1>
           <p className="text-slate-500 text-sm mt-0.5 font-medium">
             {activeNodesCount} of {totalNodesCount} nodes active
           </p>
@@ -34,7 +66,7 @@ export default function GatewayOpsPage() {
             "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all",
             showRegisterForm
               ? "bg-slate-100 border border-border-default text-slate-700 hover:bg-slate-200"
-              : "bg-navy-900 text-white hover:bg-navy-800 shadow-md"
+              : "bg-navy-900 text-white hover:bg-navy-800 shadow-md",
           )}
         >
           <Plus className="w-4 h-4" />
@@ -61,10 +93,35 @@ export default function GatewayOpsPage() {
           />
         ) : (
           nodes.map((node) => (
-            <GatewayNodeCard key={node.id} node={node} />
+            <GatewayNodeCard
+              key={node.id}
+              node={node}
+              onFundClick={handleFundClick}
+            />
           ))
         )}
       </div>
+
+      {/*  Fund Node Dialog */}
+      <Dialog open={fundDialogOpen} onOpenChange={handleDialogClose}>
+        <DialogContent className="max-w-lg p-0 overflow-hidden rounded-3xl border-0">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Fund Gateway Node</DialogTitle>
+            <DialogDescription>
+              Send XLM directly to the selected gateway node address.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedAddress !== null && (
+            <TransferForm
+              formState={formState}
+              txHash={txHash}
+              onSubmit={submitTransfer}
+              onReset={resetTransfer}
+              prefilledAddress={selectedAddress}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
