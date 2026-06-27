@@ -9,9 +9,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { cn } from "@/core/utils";
 
 export default function GatewayOpsPage() {
-  const { nodes, addNode, isSubmitting, isSuccess, isLoading, error } = useGatewayNodes();
+  const { nodes, addNode, isSubmitting, isSuccess, isLoading, error } = useGatewayNodes(); // hooks for managing node registration
   const [showRegisterForm, setShowRegisterForm] = useState(false);
-
   // Calculate stats dynamically
   const activeNodesCount = nodes.filter((node) => node.status === "active").length;
   const totalNodesCount = nodes.length;
@@ -45,7 +44,7 @@ export default function GatewayOpsPage() {
       {/* Conditional Registration Form (Spans full width when visible) */}
       {showRegisterForm && (
         <RegisterNodeForm
-          onSubmit={addNode}
+          onSubmit={addNode} // addNode function to submit on smart contract
           isSubmitting={isSubmitting}
           isSuccess={isSuccess}
         />
