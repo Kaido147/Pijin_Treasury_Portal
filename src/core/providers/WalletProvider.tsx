@@ -9,9 +9,8 @@
 'use client';
 
 import { createContext, useCallback, useContext, useState } from 'react';
-import { getNetwork } from '@stellar/freighter-api';
 import { toast } from 'sonner';
-import { freighterAdapter } from '@/infrastructure/stellar/wallet';
+import { stellarKitAdapter } from '@/infrastructure/stellar/wallet';
 import type { WalletState } from '@/core/types';
 
 // ─── Context Shape ───────────────────────────────────────
@@ -35,25 +34,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const connect = useCallback(async () => {
     setIsConnecting(true);
     try {
-      // ── Testnet Gate ──────────────────────────────────
-      const networkResult = await getNetwork();
-
-      if (networkResult.error) {
-        toast.error('Could not read Freighter network. Ensure the extension is installed.');
-        return;
-      }
-
-      const networkString = networkResult.network ?? '';
-
-      if (!networkString.toLowerCase().includes('test')) {
-        toast.error(
-          'Wrong network detected. Switch to Stellar Testnet in Freighter to continue.',
-        );
-        return;
-      }
-
       // ── Connect ───────────────────────────────────────
-      const result = await freighterAdapter.connect();
+      const result = await stellarKitAdapter.connect();
       setPublicKey(result.publicKey);
       setBalance(result.balance);
       setNetwork('testnet');
@@ -69,7 +51,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const disconnect = useCallback(async () => {
     setIsConnecting(true);
     try {
-      await freighterAdapter.disconnect();
+      await stellarKitAdapter.disconnect();
       setPublicKey(null);
       setBalance(0);
       setIsConnected(false);

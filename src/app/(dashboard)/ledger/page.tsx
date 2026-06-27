@@ -1,6 +1,8 @@
 "use client";
 
-import { Radio, FileText } from "lucide-react";
+import { useState } from "react";
+
+import { Radio, FileText, Search } from "lucide-react";
 import { useTransactionLedger } from "@/hooks/useTransactionLedger";
 import { TransactionRow } from "@/components/domain/TransactionRow";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -16,7 +18,7 @@ const FILTER_OPTIONS: { value: LedgerFilter; label: string }[] = [
 
 export default function LedgerPage() {
   const {
-    filteredTransactions,
+    filteredTransactions: statusFilteredTransactions,
     transactions,
     isLive,
     toggleLive,
@@ -24,6 +26,17 @@ export default function LedgerPage() {
     setFilter,
     summary,
   } = useTransactionLedger();
+
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  const filteredTransactions = statusFilteredTransactions.filter((tx) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      tx.hash.toLowerCase().includes(q) ||
+      (tx.memo?.toLowerCase().includes(q) ?? false)
+    );
+  });
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -38,22 +51,40 @@ export default function LedgerPage() {
           </p>
         </div>
 
-        {/* Live toggle */}
-        <button
-          id="live-toggle-btn"
-          onClick={toggleLive}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-card border",
-            isLive
-              ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-              : "bg-white border-border-default text-slate-500 hover:bg-surface-raised"
-          )}
-        >
-          <Radio
-            className={cn("w-3.5 h-3.5", isLive && "animate-pulse")}
-          />
-          {isLive ? "Live" : "Paused"}
-        </button>
+        {/* Right controls: search + live toggle */}
+        <div className="flex items-center gap-2">
+          {/* Search input */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            <input
+              id="ledger-search-input"
+              type="text"
+              value={searchQuery}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setSearchQuery(e.target.value)
+              }
+              placeholder="Search hash or memo…"
+              className="pl-8 pr-3 py-2 text-xs rounded-xl border border-border-default bg-white text-navy-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-900/20 w-48 shadow-card transition-all"
+            />
+          </div>
+
+          {/* Live toggle */}
+          <button
+            id="live-toggle-btn"
+            onClick={toggleLive}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-card border",
+              isLive
+                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                : "bg-white border-border-default text-slate-500 hover:bg-surface-raised"
+            )}
+          >
+            <Radio
+              className={cn("w-3.5 h-3.5", isLive && "animate-pulse")}
+            />
+            {isLive ? "Live" : "Paused"}
+          </button>
+        </div>
       </div>
 
       {/* Summary pills */}

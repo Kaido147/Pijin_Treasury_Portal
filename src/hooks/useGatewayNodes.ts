@@ -8,14 +8,14 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import type { GatewayNode } from '@/core/types';
+import type { GatewayNode, RegionCode } from '@/core/types';
 import { getMockGatewayNodes } from '@/infrastructure/api/mockData';
 
 export interface UseGatewayNodesReturn {
   /** Current list of gateway nodes */
   nodes: GatewayNode[];
   /** Register a new node (simulated with delay) */
-  addNode: (data: { name: string; address: string; region: string }) => void;
+  addNode: (data: { name: string; address: string; region: RegionCode }) => void;
   /** True while a registration request is in-flight */
   isSubmitting: boolean;
   /** True for 2s after a successful registration */
@@ -43,7 +43,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
   const [isSuccess, setIsSuccess] = useState(false);
 
   const addNode = useCallback(
-    (data: { name: string; address: string; region: string }) => {
+    (data: { name: string; address: string; region: RegionCode }) => {
       setIsSubmitting(true);
 
       // Simulate network delay for node registration
@@ -52,7 +52,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
           id: `node-${String(nodes.length + 1).padStart(3, '0')}`,
           name: data.name,
           address: data.address,
-          region: data.region || 'SEA-XX',
+          region: data.region,
           status: 'syncing',
           uptime: '—',
           balance: '0.00',

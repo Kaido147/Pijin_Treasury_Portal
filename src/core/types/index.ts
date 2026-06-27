@@ -28,13 +28,15 @@ export interface WalletInfo {
 
 // ─── Gateway ────────────────────────────────────────────
 
+export type RegionCode = 'SEA-01' | 'SEA-02' | 'SEA-03' | 'SEA-04' | 'SEA-05';
+
 export type NodeStatus = 'active' | 'syncing' | 'offline';
 
 export interface GatewayNode {
   id: string;
   name: string;
   address: string;
-  region: string;
+  region: RegionCode;
   status: NodeStatus;
   uptime: string;
   balance: string;

@@ -1,4 +1,4 @@
-import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, ExternalLink } from 'lucide-react';
 import type { Transaction } from '@/core/types';
 import { TX_STATUS_CONFIG } from '@/core/constants';
 import { truncateAddress, formatTime, formatDate } from '@/core/utils';
@@ -41,9 +41,15 @@ export function TransactionRow({ transaction: tx, isNew }: TransactionRowProps) 
 
       {/* Hash & memo */}
       <div className="min-w-0">
-        <div className="font-mono text-[0.72rem] text-navy-900 font-medium">
+        <a
+          href={`https://stellar.expert/explorer/testnet/tx/${tx.hash}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 font-mono text-[0.72rem] text-navy-900 font-medium hover:text-blue-600 transition-colors group"
+        >
           {truncateAddress(tx.hash)}
-        </div>
+          <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+        </a>
         <div className="text-slate-400 text-[0.7rem] mt-px">
           {tx.memo} · {formatDate(tx.ts)} {formatTime(tx.ts)}
         </div>
