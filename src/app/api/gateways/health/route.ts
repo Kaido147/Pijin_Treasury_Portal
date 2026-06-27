@@ -17,24 +17,26 @@ export async function GET() {
         let balance = '0.00';
 
         // 1. Fetch Health Status
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+        if (server.healthUrl) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-          const res = await fetch(server.healthUrl, {
-            signal: controller.signal,
-            cache: 'no-store',
-          });
+            const res = await fetch(server.healthUrl, {
+              signal: controller.signal,
+              cache: 'no-store',
+            });
 
-          clearTimeout(timeoutId);
+            clearTimeout(timeoutId);
 
-          if (res.ok) {
-            status = 'active';
-            uptime = '99.9%'; // In a real system, you might extract this from the /health response payload
+            if (res.ok) {
+              status = 'active';
+              uptime = '99.9%';
+            }
+          } catch (error) {
+            console.error(`Health check failed for ${server.name}:`, error);
+            status = 'offline';
           }
-        } catch (error) {
-          console.error(`Health check failed for ${server.name}:`, error);
-          status = 'offline';
         }
 
         // 2. Fetch Stellar Balance if applicable
@@ -42,9 +44,7 @@ export async function GET() {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
           try {
-            balance = await fetchStellarBalance(server.stellarPublicKey,
-            controller.signal,
-            );
+            balance = await fetchStellarBalance(server.stellarPublicKey, controller.signal);
           } catch (error) {
             console.error(`Balance check failed for ${server.name}:`, error);
           } finally {
