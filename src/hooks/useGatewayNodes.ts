@@ -2,7 +2,7 @@
 // Hook: useGatewayNodes
 //
 // Manages the list of gateway nodes and the registration flow.
-// Consumes mock data from the infrastructure layer.
+// Fetches live status from /api/gateways/health (server config + Horizon).
 // ═══════════════════════════════════════════════════════════
 
 'use client';
@@ -37,7 +37,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
         if (initialLoad) {
           setIsLoading(true);
         }
-        const res = await fetch('/api/gateways/health');
+        const res = await fetch('/api/gateways/health', { cache: 'no-store' });
         if (!res.ok) throw new Error('Failed to fetch gateway nodes');
         
         const data: GatewayNode[] = await res.json();
@@ -56,10 +56,10 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
       }
     }
 
-    fetchNodes();
+    fetchNodes(true);
 
-    // Optional: Poll every 30 seconds
-    const interval = setInterval(fetchNodes, 30000);
+    // Poll every 30 seconds without toggling the loading spinner
+    const interval = setInterval(() => fetchNodes(false), 30000);
 
     return () => {
       isMounted = false;
