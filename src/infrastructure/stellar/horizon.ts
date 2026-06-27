@@ -5,7 +5,7 @@
 // network directly via REST API.
 // ═══════════════════════════════════════════════════════════
 
-const HORIZON_URL = process.env.STELLAR_HORIZON_TESTNET_URL;
+const HORIZON_URL = process.env.STELLAR_HORIZON_URL;
 
 /**
  * Fetches the live XLM balance for a given Stellar public key.
@@ -18,12 +18,13 @@ export async function fetchStellarBalance(publicKey: string, signal?: AbortSigna
 
   try {
     const response = await fetch(`${HORIZON_URL}/accounts/${publicKey}`, {
+      signal,
       // Ensure we don't cache this heavily on the server if we want live data
       next: { revalidate: 30 },
     });
 
     if (!response.ok) {
-      console.error(`Failed to fetch balance for ${publicKey}: ${response.statusText}`);
+      console.warn(`Failed to fetch balance for ${publicKey}: ${response.statusText}`);
       return '0.00'; // Return '0.00' for unfunded or invalid accounts
     }
 
