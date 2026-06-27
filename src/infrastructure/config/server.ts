@@ -28,7 +28,8 @@ export const INFRASTRUCTURE_SERVERS: InfrastructureServer[] = [
         id: 'node-textbee-001',
         name: 'Textbee SMS Server',
         type: 'sms_gateway',
-        healthUrl: process.env.TEXTBEE_GATEWAY_URL || '',
+        // send-sms is POST-only; ping the API root for liveness instead
+        healthUrl: process.env.TEXTBEE_HEALTH_URL || '',
         region: 'Global',
     },
 ];
