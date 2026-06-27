@@ -25,6 +25,7 @@ import type {
   StatusConfig,
   ServiceStatus,
   ServiceStatusConfig,
+  RegionCode,
 } from '@/core/types';
 
 // ─── Navigation ─────────────────────────────────────────
@@ -87,6 +88,16 @@ export const STAT_ICON_MAP: Record<string, ElementType> = {
   activity: Activity,
   'trending-up': TrendingUp,
 };
+
+// ─── Available Regions ──────────────────────────────────
+
+export const AVAILABLE_REGIONS: readonly { value: RegionCode; label: string }[] = [
+  { value: 'SEA-01', label: 'Manila (SEA-01)' },
+  { value: 'SEA-02', label: 'Jakarta (SEA-02)' },
+  { value: 'SEA-03', label: 'Cebu (SEA-03)' },
+  { value: 'SEA-04', label: 'Singapore (SEA-04)' },
+  { value: 'SEA-05', label: 'Palawan (SEA-05)' },
+] as const;
 
 // ─── Stellar Network ───────────────────────────────────
 

@@ -59,14 +59,6 @@ export function GatewayNodeCard({ node, onFundClick }: GatewayNodeCardProps) {
         </div>
       </div>
 
-      {/* Uptime */}
-      <div className="text-right shrink-0 hidden md:block">
-        <div className="text-slate-500 text-[0.7rem]">Uptime</div>
-        <div className="font-mono font-semibold text-sm text-navy-900">
-          {node.uptime}
-        </div>
-      </div>
-
       {/* Region */}
       <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl shrink-0 bg-surface">
         <Globe className="w-3 h-3 text-slate-500" />

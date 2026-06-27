@@ -63,7 +63,7 @@ export function TransferForm({
           <div>
             <div className="text-navy-900 font-bold">XLM Transfer</div>
             <div className="text-slate-500 text-xs">
-              Stellar Testnet · Freighter Wallet
+              Stellar Testnet · Multi-Wallet
             </div>
           </div>
         </div>

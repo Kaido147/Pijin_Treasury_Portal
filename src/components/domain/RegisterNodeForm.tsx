@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Server, CheckCircle2, Loader2 } from 'lucide-react';
+import { Server, CheckCircle2, Loader2, ChevronDown } from 'lucide-react';
+import { AVAILABLE_REGIONS } from '@/core/constants';
+import type { RegionCode } from '@/core/types';
 
 interface RegisterNodeFormProps {
-  onSubmit: (data: { name: string; address: string; region: string }) => void;
+  onSubmit: (data: { name: string; address: string; region: RegionCode }) => void;
   isSubmitting: boolean;
   isSuccess: boolean;
 }
@@ -14,7 +16,11 @@ export function RegisterNodeForm({
   isSubmitting,
   isSuccess,
 }: RegisterNodeFormProps) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    address: string;
+    region: RegionCode | '';
+  }>({
     name: '',
     address: '',
     region: '',
@@ -22,7 +28,8 @@ export function RegisterNodeForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    if (!formData.region) return;
+    onSubmit({ ...formData, region: formData.region });
   };
 
   // Reset local fields when the success state auto-dismisses
@@ -93,16 +100,31 @@ export function RegisterNodeForm({
               <label className="text-navy-900 text-[0.78rem] font-bold block">
                 Region
               </label>
-              <input
-                id="node-region-input"
-                value={formData.region}
-                onChange={(e) =>
-                  setFormData((p) => ({ ...p, region: e.target.value }))
-                }
-                placeholder="SEA-05"
-                disabled={isSubmitting}
-                className="w-full px-4 py-2.5 rounded-xl border-[1.5px] border-border-default bg-slate-50 text-sm text-navy-900 outline-none transition-all focus:border-navy-700 focus:bg-white"
-              />
+              <div className="relative">
+                <select
+                  id="node-region-input"
+                  value={formData.region}
+                  onChange={(e) =>
+                    setFormData((p) => ({
+                      ...p,
+                      region: e.target.value as RegionCode,
+                    }))
+                  }
+                  required
+                  disabled={isSubmitting}
+                  className="w-full appearance-none px-4 py-2.5 pr-10 rounded-xl border-[1.5px] border-border-default bg-slate-50 text-sm text-navy-900 outline-none transition-all focus:border-navy-700 focus:bg-white cursor-pointer"
+                >
+                  <option value="" disabled>
+                    — Select region —
+                  </option>
+                  {AVAILABLE_REGIONS.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              </div>
             </div>
           </div>
 
