@@ -13,7 +13,7 @@ import { ADMIN_ADDRESS } from '@/core/constants';
 
 // ─── Constants ──────────────────────────────────────────
 
-const HORIZON_TESTNET_URL = 'https://horizon-testnet.stellar.org';
+const HORIZON_URL = process.env.STELLAR_HORIZON_URL!;
 
 // ─── Adapter Interface ──────────────────────────────────
 
@@ -31,7 +31,7 @@ export interface WalletAdapter {
 // ─── Horizon Helper ─────────────────────────────────────
 
 async function fetchXlmBalance(publicKey: string): Promise<number> {
-  const server = new Horizon.Server(HORIZON_TESTNET_URL);
+  const server = new Horizon.Server(HORIZON_URL);
   const account = await server.loadAccount(publicKey);
   const native = account.balances.find((b) => b.asset_type === 'native');
   return parseFloat(native?.balance ?? '0');
