@@ -36,6 +36,28 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       // ── Connect ───────────────────────────────────────
       const result = await stellarKitAdapter.connect();
+
+      // Auth Challenge - POST Request
+      const challengeRes = await fetch(`/api/auth/challenge`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ adminAddress: result.publicKey }),
+      });
+      if (!challengeRes.ok) {
+        let errMessage = 'Failed to fetch auth challenge';
+        try {
+          const errData = await challengeRes.json();
+          if (errData.error) errMessage = errData.error;
+        } catch (e) { }
+        throw new Error(errMessage);
+      }
+      const { nonce } = await challengeRes.json();
+
+      // TODO: Sign the nonce with the wallet and call POST /api/auth/challenge to verify
+      console.log('Received auth challenge nonce:', nonce);
+
       setPublicKey(result.publicKey);
       setBalance(result.balance);
       setNetwork('testnet');
