@@ -17,7 +17,7 @@ import { ADMIN_ADDRESS } from '@/core/constants';
 
 // ─── Constants ──────────────────────────────────────────
 
-const HORIZON_URL = process.env.STELLAR_HORIZON_URL!;
+const HORIZON_URL = process.env.NEXT_PUBLIC_STELLAR_HORIZON_URL || process.env.STELLAR_HORIZON_URL || 'https://horizon-testnet.stellar.org';
 
 if (typeof window !== 'undefined') {
   StellarWalletsKit.init({
