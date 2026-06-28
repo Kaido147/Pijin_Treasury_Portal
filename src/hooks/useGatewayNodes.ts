@@ -7,12 +7,24 @@
 
 'use client';
 
+<<<<<<< HEAD
 import { useState, useCallback, useEffect } from 'react';
 import type { GatewayNode } from '@/core/types';
+=======
+import { useState, useCallback } from 'react';
+import type { GatewayNode, RegionCode } from '@/core/types';
+import { getMockGatewayNodes } from '@/infrastructure/api/mockData';
+>>>>>>> 3fda6019916b97512da6eab4a3cc11c8bf32eee4
 
 export interface UseGatewayNodesReturn {
   nodes: GatewayNode[];
+<<<<<<< HEAD
   addNode: (data: { name: string; address: string; region: string }) => void;
+=======
+  /** Register a new node (simulated with delay) */
+  addNode: (data: { name: string; address: string; region: RegionCode }) => void;
+  /** True while a registration request is in-flight */
+>>>>>>> 3fda6019916b97512da6eab4a3cc11c8bf32eee4
   isSubmitting: boolean;
   isSuccess: boolean;
   resetForm: () => void;
@@ -28,9 +40,15 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+<<<<<<< HEAD
   // Fetch nodes on mount and optionally poll
   useEffect(() => {
     let isMounted = true;
+=======
+  const addNode = useCallback(
+    (data: { name: string; address: string; region: RegionCode }) => {
+      setIsSubmitting(true);
+>>>>>>> 3fda6019916b97512da6eab4a3cc11c8bf32eee4
 
     async function fetchNodes(initialLoad: boolean = false) {
       try {
@@ -79,7 +97,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
           id: `node-${Date.now()}`,
           name: data.name,
           address: data.address,
-          region: data.region || 'SEA-XX',
+          region: data.region,
           status: 'syncing',
           uptime: '—',
           balance: '0.00',

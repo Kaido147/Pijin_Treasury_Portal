@@ -1,13 +1,14 @@
-import { Globe } from 'lucide-react';
+import { Globe, Coins } from 'lucide-react';
 import type { GatewayNode } from '@/core/types';
 import { NODE_STATUS_CONFIG } from '@/core/constants';
 import { cn } from '@/core/utils';
 
 interface GatewayNodeCardProps {
   node: GatewayNode;
+  onFundClick: (address: string) => void;
 }
 
-export function GatewayNodeCard({ node }: GatewayNodeCardProps) {
+export function GatewayNodeCard({ node, onFundClick }: GatewayNodeCardProps) {
   const cfg = NODE_STATUS_CONFIG[node.status];
   const StatusIcon = cfg.icon;
 
@@ -58,14 +59,6 @@ export function GatewayNodeCard({ node }: GatewayNodeCardProps) {
         </div>
       </div>
 
-      {/* Uptime */}
-      <div className="text-right shrink-0 hidden md:block">
-        <div className="text-slate-500 text-[0.7rem]">Uptime</div>
-        <div className="font-mono font-semibold text-sm text-navy-900">
-          {node.uptime}
-        </div>
-      </div>
-
       {/* Region */}
       <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl shrink-0 bg-surface">
         <Globe className="w-3 h-3 text-slate-500" />
@@ -73,6 +66,20 @@ export function GatewayNodeCard({ node }: GatewayNodeCardProps) {
           {node.region}
         </span>
       </div>
-    </div>
+
+      {/* Fund Button */}
+      <button
+        id={`fund-node-btn-${node.id}`}
+        type="button"
+        onClick={() => onFundClick(node.address)}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl shrink-0 bg-navy-900 text-white text-[0.72rem] font-semibold transition-all hover:bg-navy-700"
+      >
+        <Coins className="w-3 h-3" />
+        Fund
+      </button>
+
+
+
+    </div >
   );
 }

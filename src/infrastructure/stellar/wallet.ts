@@ -7,13 +7,24 @@
 //   • freighterAdapter   — live Freighter browser extension + Horizon
 // ═══════════════════════════════════════════════════════════
 
-import { isConnected, requestAccess, getAddress } from '@stellar/freighter-api';
+import { StellarWalletsKit } from "@creit-tech/stellar-wallets-kit/sdk";
+import { SwkAppLightTheme } from "@creit-tech/stellar-wallets-kit/types";
+import { defaultModules } from "@creit-tech/stellar-wallets-kit/modules/utils";
+
 import { Horizon } from '@stellar/stellar-sdk';
 import { ADMIN_ADDRESS } from '@/core/constants';
+
 
 // ─── Constants ──────────────────────────────────────────
 
 const HORIZON_URL = process.env.STELLAR_HORIZON_URL!;
+
+if (typeof window !== 'undefined') {
+  StellarWalletsKit.init({
+    theme: SwkAppLightTheme,
+    modules: defaultModules(),
+  });
+}
 
 // ─── Adapter Interface ──────────────────────────────────
 
@@ -73,27 +84,14 @@ export const mockWalletAdapter: WalletAdapter = {
  * useStellarWallet hook before connect() is called.
  * This adapter stays network-agnostic and testable in isolation.
  */
-export const freighterAdapter: WalletAdapter = {
+export const stellarKitAdapter: WalletAdapter = {
   connect: async () => {
-    const connected = await isConnected();
-    if (!connected) {
-      throw new Error('Freighter extension not found. Install it from freighter.app.');
-    }
 
-    const accessResult = await requestAccess();
-    if (accessResult.error) {
-      throw new Error(`Freighter access denied: ${accessResult.error}`);
-    }
+    const { address } = await StellarWalletsKit.authModal();
 
-    const addrResult = await getAddress();
-    if (addrResult.error) {
-      throw new Error(`Could not retrieve public key: ${addrResult.error}`);
-    }
+    const balance = await fetchXlmBalance(address)
 
-    const publicKey = addrResult.address;
-    const balance = await fetchXlmBalance(publicKey);
-
-    return { publicKey, balance };
+    return { publicKey: address, balance };
   },
 
   disconnect: async () => {

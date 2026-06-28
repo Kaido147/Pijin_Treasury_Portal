@@ -15,6 +15,7 @@ interface TransferFormProps {
     memo: string;
   }) => void;
   onReset: () => void;
+  prefilledAddress?: string;
 }
 
 export function TransferForm({
@@ -22,8 +23,9 @@ export function TransferForm({
   txHash,
   onSubmit,
   onReset,
+  prefilledAddress
 }: TransferFormProps) {
-  const [address, setAddress] = useState('');
+  const [address, setAddress] = useState(prefilledAddress ?? '');
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
   const [addressError, setAddressError] = useState('');
@@ -61,7 +63,7 @@ export function TransferForm({
           <div>
             <div className="text-navy-900 font-bold">XLM Transfer</div>
             <div className="text-slate-500 text-xs">
-              Stellar Testnet · Freighter Wallet
+              Stellar Testnet · Multi-Wallet
             </div>
           </div>
         </div>
@@ -120,10 +122,12 @@ export function TransferForm({
                 setAddressError('');
               }}
               placeholder="GABC…XYZ (56 characters)"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !!prefilledAddress}
               className={cn(
                 'w-full px-4 py-3 rounded-xl border-[1.5px] font-mono text-[0.78rem] text-navy-900 outline-none transition-all',
-                addressError
+                prefilledAddress
+                  ? 'border-border-default bg-slate-100 text-slate-500 cursor-not-allowed'
+                  : addressError
                   ? 'border-red-600 bg-slate-50'
                   : 'border-border-default bg-slate-50 focus:border-navy-700 focus:bg-white',
               )}
@@ -134,7 +138,17 @@ export function TransferForm({
                 {addressError}
               </div>
             )}
+
+            {prefilledAddress && (
+            <div className="flex items-center gap-1.5 text-slate-500 text-xs">
+              <span className="px-2 py-0.5 rounded-lg bg-surface-raised font-mono text-[0.65rem]">
+                Auto-filled · read-only
+              </span>
+            </div>
+          )}
+
             {/* Quick-fill */}
+            {!prefilledAddress && (
             <div className="flex flex-wrap gap-1.5 pt-0.5">
               {QUICK_FILL_ADDRESSES.map((addr) => (
                 <button
@@ -154,6 +168,7 @@ export function TransferForm({
                 Quick-fill node addresses
               </span>
             </div>
+            )}
           </div>
 
           {/* Amount */}
