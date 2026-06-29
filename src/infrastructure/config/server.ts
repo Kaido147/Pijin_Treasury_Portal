@@ -16,20 +16,5 @@ export interface InfrastructureServer {
 }
 
 export const INFRASTRUCTURE_SERVERS: InfrastructureServer[] = [
-    {
-        id: 'node-backend-001',
-        name: 'Next.js Backend (Gas Payer)',
-        type: 'backend',
-        healthUrl: process.env.BACKEND_URL || '',
-        region: 'Global',
-        stellarPublicKey: process.env.RELAYER_PUBLIC_KEY || '',
-    },
-    {
-        id: 'node-textbee-001',
-        name: 'Textbee SMS Server',
-        type: 'sms_gateway',
-        // send-sms is POST-only; ping the API root for liveness instead
-        healthUrl: process.env.TEXTBEE_HEALTH_URL || '',
-        region: 'Global',
-    },
+
 ];
