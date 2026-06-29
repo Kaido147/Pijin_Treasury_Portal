@@ -18,10 +18,8 @@ import {
 } from "@/components/ui/dialog";
 
 export default function GatewayOpsPage() {
-  const { nodes, addNode, isSubmitting, isSuccess, isLoading, error } = useGatewayNodes(); // hooks for managing node registration
+  const { nodes, addNode, isSubmitting, isSuccess, isLoading, loadError, submitError } = useGatewayNodes(); // hooks for managing node registration
   const [showRegisterForm, setShowRegisterForm] = useState(false);
-<<<<<<< HEAD
-=======
 
   // Fund-node modal state
   const [fundDialogOpen, setFundDiaglogOpen] = useState<boolean>(false);
@@ -42,7 +40,6 @@ export default function GatewayOpsPage() {
     }
   };
 
->>>>>>> 3fda6019916b97512da6eab4a3cc11c8bf32eee4
   // Calculate stats dynamically
   const activeNodesCount = nodes.filter(
     (node) => node.status === "active",
@@ -87,9 +84,15 @@ export default function GatewayOpsPage() {
       )}
 
       {/* Error State */}
-      {error && (
+      {loadError && (
         <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-200">
-          Failed to load gateway nodes: {error}
+          Failed to load gateway nodes: {loadError}
+        </div>
+      )}
+
+      {submitError && (
+        <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-200">
+          Failed to register gateway node: {submitError}
         </div>
       )}
 
@@ -99,7 +102,7 @@ export default function GatewayOpsPage() {
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy-900"></div>
           </div>
-        ) : nodes.length === 0 && !error ? (
+        ) : nodes.length === 0 && !loadError ? (
           <EmptyState
             icon={Server}
             title="No nodes registered"
