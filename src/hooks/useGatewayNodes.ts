@@ -2,13 +2,14 @@
 // Hook: useGatewayNodes
 //
 // Manages the list of gateway nodes and the registration flow.
-// Fetches live status from /api/gateways/health (server config + Horizon).
+// Fetches persisted gateway nodes from /api/gateways/register.
 // ═══════════════════════════════════════════════════════════
 
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
 import type { GatewayNode } from '@/core/types';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
 
 export interface UseGatewayNodesReturn {
   nodes: GatewayNode[];
@@ -17,13 +18,73 @@ export interface UseGatewayNodesReturn {
   isSuccess: boolean;
   resetForm: () => void;
   isLoading: boolean;
-  error: string | null;
+  loadError: string | null;
+  submitError: string | null;
+}
+
+type GatewayRegisterErrorResponse = {
+  error?: string;
+  details?: string;
+  events?: Array<{
+    topics?: unknown[];
+  }>;
+};
+
+type GatewayRegisterSuccessResponse = {
+  success: true;
+  txHash: string;
+  node: GatewayNode;
+};
+
+const CONTRACT_ERROR_MESSAGES: Record<number, string> = {
+  1: 'Already initialized',
+  2: 'Unauthorized. The transaction signer is not the contract admin allowed to register gateways.',
+  3: 'Invalid amount',
+  4: 'Expired voucher',
+  5: 'Nonce replayed',
+  6: 'Insufficient balance',
+  8: 'Math overflow',
+  9: 'Gateway is not whitelisted',
+};
+
+function getContractErrorCode(errorData: GatewayRegisterErrorResponse): number | null {
+  const detailMatch = errorData.details?.match(/Error\(Contract,\s*#(\d+)\)/);
+  if (detailMatch) return Number(detailMatch[1]);
+
+  for (const event of errorData.events ?? []) {
+    for (const topic of event.topics ?? []) {
+      if (
+        topic &&
+        typeof topic === 'object' &&
+        'type' in topic &&
+        'code' in topic &&
+        (topic as { type?: unknown }).type === 'contract'
+      ) {
+        return Number((topic as { code: unknown }).code);
+      }
+    }
+  }
+
+  return null;
+}
+
+function formatRegisterError(errorData: GatewayRegisterErrorResponse): string {
+  const code = getContractErrorCode(errorData);
+
+  if (code !== null) {
+    const message = CONTRACT_ERROR_MESSAGES[code] ?? 'Unknown contract error';
+    return `Contract rejected register_gateway with error #${code}: ${message}`;
+  }
+
+  return errorData.details || errorData.error || 'Failed to register node';
 }
 
 export function useGatewayNodes(): UseGatewayNodesReturn {
+  const { isConnected } = useStellarWallet();
   const [nodes, setNodes] = useState<GatewayNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -36,23 +97,35 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
         if (initialLoad) {
           setIsLoading(true);
         }
-        const res = await fetch('/api/gateways/health', { cache: 'no-store' });
-        if (!res.ok) throw new Error('Failed to fetch gateway nodes');
+        // Fetch all the nodes (gateways)
+        const res = await fetch('/api/gateways/register', { cache: 'no-store' });
 
-        const data: GatewayNode[] = await res.json();
-        if (isMounted) {
-          setNodes(data);
-          setError(null);
+        if (res.status === 401) {
+          setNodes([]); // Wipe the data if not authenticated
+          return;
+        }
+
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) {
+            setNodes(data);
+          }
         }
       } catch (err) {
         if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Unknown error');
+          setLoadError(err instanceof Error ? err.message : 'Unknown error');
         }
       } finally {
         if (isMounted) {
           setIsLoading(false);
         }
       }
+    }
+
+    if (!isConnected) {
+      setNodes([]);
+      setIsLoading(false);
+      return;
     }
 
     fetchNodes(true);
@@ -64,50 +137,50 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
       isMounted = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [isConnected]);
 
+  // addNode function to register the gateway stellar address
   const addNode = useCallback(
     async (data: { name: string; address: string; region: string }) => {
       setIsSubmitting(true);
+      setSubmitError(null);
 
       if (nodes.find((node) => node.address === data.address)) {
-        setError('Node already exists');
+        setSubmitError('Node already exists');
         setIsSubmitting(false);
         return;
       }
 
-      const res = await fetch('/api/gateways/register', {
-        method: 'POST',
-        body: JSON.stringify(data),
-        headers: { 'Content-Type': 'application/json' },
-      });
+      try {
+        const res = await fetch('/api/gateways/register', {
+          method: 'POST',
+          body: JSON.stringify(data),
+          headers: { 'Content-Type': 'application/json' },
+        });
 
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to register node');
-      }
+        if (!res.ok) {
+          const errorData: GatewayRegisterErrorResponse = await res.json();
+          throw new Error(formatRegisterError(errorData));
+        }
 
-      setTimeout(() => {
-        const newNode: GatewayNode = {
-          id: `node-${Date.now()}`,
-          name: data.name,
-          address: data.address,
-          region: data.region,
-          status: 'syncing',
-          uptime: '—',
-          balance: '0.00',
-        };
-
-        setNodes((prev) => [...prev, newNode]);
-        setIsSubmitting(false);
-        setIsSuccess(true);
+        const result: GatewayRegisterSuccessResponse = await res.json();
 
         setTimeout(() => {
-          setIsSuccess(false);
-        }, 2000);
-      }, 1000);
+          setNodes((prev) => [...prev, result.node]);
+          setIsSubmitting(false);
+          setIsSuccess(true);
+
+          setTimeout(() => {
+            setIsSuccess(false);
+          }, 2000);
+        }, 1000);
+
+      } catch (err: any) {
+        setSubmitError(err.message);
+        setIsSubmitting(false); // this unlocks the form if it fails
+      }
     },
-    []
+    [nodes] // added nodes here so it always has the latest list
   );
 
   const resetForm = useCallback(() => {
@@ -122,6 +195,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
     isSuccess,
     resetForm,
     isLoading,
-    error
+    loadError,
+    submitError
   };
 }
