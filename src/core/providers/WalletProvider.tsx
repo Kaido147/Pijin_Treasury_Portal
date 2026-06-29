@@ -55,8 +55,30 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       }
       const { nonce } = await challengeRes.json();
 
-      // TODO: Sign the nonce with the wallet and call POST /api/auth/challenge to verify
-      console.log('Received auth challenge nonce:', nonce);
+      // Sign the nonce with the wallet
+      const signature = await stellarKitAdapter.signMessage(nonce);
+
+      // Verify the signature to get the JWT cookie
+      const verifyRes = await fetch(`/api/auth/challenge`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          adminAddress: result.publicKey,
+          nonce,
+          signature
+        }),
+      });
+
+      if (!verifyRes.ok) {
+        let errMessage = 'Failed to verify auth challenge';
+        try {
+          const errData = await verifyRes.json();
+          if (errData.error) errMessage = errData.error;
+        } catch (e) { }
+        throw new Error(errMessage);
+      }
 
       setPublicKey(result.publicKey);
       setBalance(result.balance);
@@ -77,6 +99,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setPublicKey(null);
       setBalance(0);
       setIsConnected(false);
+      localStorage.removeItem('admin_session');
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     } finally {
       setIsConnecting(false);
     }
