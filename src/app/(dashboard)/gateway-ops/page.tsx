@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 
 export default function GatewayOpsPage() {
-  const { nodes, addNode, isSubmitting, isSuccess } = useGatewayNodes();
+  const { nodes, addNode, isSubmitting, isSuccess, isLoading, loadError, submitError } = useGatewayNodes(); // hooks for managing node registration
   const [showRegisterForm, setShowRegisterForm] = useState(false);
 
   // Fund-node modal state
@@ -55,7 +55,7 @@ export default function GatewayOpsPage() {
             Gateway Operations
           </h1>
           <p className="text-slate-500 text-sm mt-0.5 font-medium">
-            {activeNodesCount} of {totalNodesCount} nodes active
+            {isLoading ? "Loading..." : `${activeNodesCount} of ${totalNodesCount} nodes active`}
           </p>
         </div>
 
@@ -77,15 +77,32 @@ export default function GatewayOpsPage() {
       {/* Conditional Registration Form (Spans full width when visible) */}
       {showRegisterForm && (
         <RegisterNodeForm
-          onSubmit={addNode}
+          onSubmit={addNode} // addNode function to submit on smart contract
           isSubmitting={isSubmitting}
           isSuccess={isSuccess}
         />
       )}
 
+      {/* Error State */}
+      {loadError && (
+        <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-200">
+          Failed to load gateway nodes: {loadError}
+        </div>
+      )}
+
+      {submitError && (
+        <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-200">
+          Failed to register gateway node: {submitError}
+        </div>
+      )}
+
       {/* Node List (Spans full width, stacked in a column with space-y-3) */}
       <div className="space-y-3">
-        {nodes.length === 0 ? (
+        {isLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy-900"></div>
+          </div>
+        ) : nodes.length === 0 && !loadError ? (
           <EmptyState
             icon={Server}
             title="No nodes registered"

@@ -36,6 +36,50 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       // ── Connect ───────────────────────────────────────
       const result = await stellarKitAdapter.connect();
+
+      // Auth Challenge - POST Request
+      const challengeRes = await fetch(`/api/auth/challenge`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ adminAddress: result.publicKey }),
+      });
+      if (!challengeRes.ok) {
+        let errMessage = 'Failed to fetch auth challenge';
+        try {
+          const errData = await challengeRes.json();
+          if (errData.error) errMessage = errData.error;
+        } catch (e) { }
+        throw new Error(errMessage);
+      }
+      const { nonce } = await challengeRes.json();
+
+      // Sign the nonce with the wallet
+      const signature = await stellarKitAdapter.signMessage(nonce);
+
+      // Verify the signature to get the JWT cookie
+      const verifyRes = await fetch(`/api/auth/challenge`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          adminAddress: result.publicKey,
+          nonce,
+          signature
+        }),
+      });
+
+      if (!verifyRes.ok) {
+        let errMessage = 'Failed to verify auth challenge';
+        try {
+          const errData = await verifyRes.json();
+          if (errData.error) errMessage = errData.error;
+        } catch (e) { }
+        throw new Error(errMessage);
+      }
+
       setPublicKey(result.publicKey);
       setBalance(result.balance);
       setNetwork('testnet');
@@ -55,6 +99,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setPublicKey(null);
       setBalance(0);
       setIsConnected(false);
+      localStorage.removeItem('admin_session');
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     } finally {
       setIsConnecting(false);
     }
