@@ -167,11 +167,21 @@ export async function POST(request: Request) {
             const events = formatSimulationEvents(simulation.events);
             console.error('Simulation Error:', simulation.error);
             console.error('Simulation Events:', inspect(events, { depth: null, colors: false }));
+
+            // Determine error type based on the simulation error message
+            let errorType = 'simulation_failed';
+            const errorMessage = simulation.error?.toLowerCase() || '';
+            
+            if (errorMessage.includes('gas') || errorMessage.includes('limit') || errorMessage.includes('budget') || errorMessage.includes('resource')) {
+                errorType = 'out_of_gas';
+            }
+
             return NextResponse.json({
+                type: errorType,
                 error: 'Contract simulation failed',
                 details: simulation.error || 'Unknown simulation error',
                 events
-            }, { status: 400 });
+            }, { status: 422 });
         }
 
         // Assemble the final transaction with the simulated data and sign it
@@ -197,6 +207,11 @@ export async function POST(request: Request) {
             })
             .select()
             .single();
+
+        // Handle duplicate entries (nodes)
+        if (nodeError?.code === '23505') {
+            return NextResponse.json({ error: 'Gateway already registered.' }, { status: 409 });
+        }
 
         if (nodeError) {
             console.error('database error:', nodeError);

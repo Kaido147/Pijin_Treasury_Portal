@@ -23,6 +23,7 @@ export interface UseGatewayNodesReturn {
 }
 
 type GatewayRegisterErrorResponse = {
+  type?: string;
   error?: string;
   details?: string;
   events?: Array<{
@@ -69,6 +70,10 @@ function getContractErrorCode(errorData: GatewayRegisterErrorResponse): number |
 }
 
 function formatRegisterError(errorData: GatewayRegisterErrorResponse): string {
+  if (errorData.type === 'out_of_gas') {
+    return 'Simulation failed: Out of gas or exceeded resource limits.';
+  }
+
   const code = getContractErrorCode(errorData);
 
   if (code !== null) {
