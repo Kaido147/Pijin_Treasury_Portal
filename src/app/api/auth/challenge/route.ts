@@ -1,6 +1,6 @@
 import { Keypair } from '@stellar/stellar-sdk';
 import { NextResponse } from 'next/server';
-import { createServiceClient } from '@/infrastructure/supabase/server';
+import { createServiceClient, createClient } from '@/infrastructure/supabase/server';
 import { cookies } from 'next/headers';
 import { SignJWT } from 'jose';
 
@@ -8,9 +8,9 @@ const secretJwtKey = process.env.JWT_SECRET_KEY;
 
 export async function POST(request: Request) {
     try {
-        // ── GATE 1: Verify Supabase Identity Session ──
-        const supabase = await createServiceClient();
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        // ── GATE 1: Verify Supabase Identity Session (Using the Bouncer) ──
+        const userClient = await createClient();
+        const { data: { user }, error: userError } = await userClient.auth.getUser();
 
         if (userError || !user) {
             return NextResponse.json(
@@ -18,6 +18,9 @@ export async function POST(request: Request) {
                 { status: 401 }
             );
         }
+
+        // ── Create the Admin Database Client for wallet operations ──
+        const supabase = createServiceClient();
 
         // ── Parse request body ──
         const { adminAddress, signature, nonce } = await request.json();
@@ -35,7 +38,12 @@ export async function POST(request: Request) {
                 .eq('stellar_address', adminAddress)
                 .maybeSingle();
 
-            if (adminError || !adminData) {
+            if (adminError) {
+                console.error("❌ CRITICAL SUPABASE SERVER ERROR (Flow A):", adminError.message, adminError.details);
+                return NextResponse.json({ error: adminError.message }, { status: 500 });
+            }
+            if (!adminData) {
+                console.error("⚠️ Flow A Defect: Admin row missing for address:", adminAddress);
                 return NextResponse.json({ error: 'Admin not found' }, { status: 404 });
             }
 
@@ -55,7 +63,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ nonce: newNonce });
         }
 
-        // ── Verification Flow (when signature is provided) ──
 
         // Fetch the actual nonce from Supabase to ensure it matches what was sent
         const { data: verifyData, error: verifyError } = await supabase
@@ -64,11 +71,17 @@ export async function POST(request: Request) {
             .eq('stellar_address', adminAddress)
             .maybeSingle();
 
-        if (verifyError || !verifyData) {
+        if (verifyError) {
+            console.error("❌ CRITICAL SUPABASE SERVER ERROR (Flow B):", verifyError.message, verifyError.details);
+            return NextResponse.json({ error: verifyError.message }, { status: 500 });
+        }
+        if (!verifyData) {
+            console.error("⚠️ Flow B Defect: Admin row missing for address:", adminAddress);
             return NextResponse.json({ error: 'Admin not found' }, { status: 404 });
         }
 
         if (verifyData.current_nonce !== nonce) {
+            console.warn(`❌ Nonce Desync! DB has: [${verifyData.current_nonce}], UI sent: [${nonce}]`);
             return NextResponse.json({ error: 'Invalid or expired nonce' }, { status: 401 });
         }
 

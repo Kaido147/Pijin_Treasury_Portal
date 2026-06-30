@@ -60,19 +60,22 @@ export function LoginForm() {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-5">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
         {/* Email Field */}
         <FormField
           control={form.control}
           name="email"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>Work Email Address</FormLabel>
+            <FormItem className="space-y-2">
+              <FormLabel className="text-xs font-semibold tracking-wider text-muted-foreground/80 uppercase">
+                Work Email Address
+              </FormLabel>
               <FormControl>
                 <Input
                   type="email"
                   placeholder="admin@pijin.com"
                   autoComplete="email"
+                  className="h-12 px-4 text-base transition-all focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary"
                   {...field}
                 />
               </FormControl>
@@ -86,13 +89,16 @@ export function LoginForm() {
           control={form.control}
           name="password"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>Password</FormLabel>
+            <FormItem className="space-y-2">
+              <FormLabel className="text-xs font-semibold tracking-wider text-muted-foreground/80 uppercase">
+                Password
+              </FormLabel>
               <FormControl>
                 <Input
                   type="password"
                   placeholder="••••••••••••••••"
                   autoComplete="current-password"
+                  className="h-12 px-4 text-base transition-all focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary"
                   {...field}
                 />
               </FormControl>
@@ -102,7 +108,7 @@ export function LoginForm() {
         />
 
         {/* Keep signed in + Forgot password row */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mt-1">
           <div className="flex items-center gap-2">
             <Checkbox
               id="keep-signed-in"
@@ -113,7 +119,7 @@ export function LoginForm() {
             />
             <Label
               htmlFor="keep-signed-in"
-              className="cursor-pointer text-sm font-normal"
+              className="cursor-pointer text-sm font-normal text-muted-foreground transition-colors hover:text-foreground"
             >
               Keep me signed in
             </Label>
@@ -137,7 +143,7 @@ export function LoginForm() {
         <Button
           type="submit"
           size="lg"
-          className="h-12 w-full"
+          className="h-12 w-full text-base font-semibold tracking-wide bg-primary hover:bg-primary/95 text-primary-foreground shadow-sm transition-all active:scale-[0.99]"
           disabled={isSubmitting}
         >
           {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" />}

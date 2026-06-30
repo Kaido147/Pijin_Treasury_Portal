@@ -80,7 +80,6 @@ function formatRegisterError(errorData: GatewayRegisterErrorResponse): string {
 }
 
 export function useGatewayNodes(): UseGatewayNodesReturn {
-  const { isConnected } = useStellarWallet();
   const [nodes, setNodes] = useState<GatewayNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -100,10 +99,6 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
         // Fetch all the nodes (gateways)
         const res = await fetch('/api/gateways/register', { cache: 'no-store' });
 
-        if (res.status === 401) {
-          setNodes([]); // Wipe the data if not authenticated
-          return;
-        }
 
         if (res.ok) {
           const data = await res.json();
@@ -122,12 +117,6 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
       }
     }
 
-    if (!isConnected) {
-      setNodes([]);
-      setIsLoading(false);
-      return;
-    }
-
     fetchNodes(true);
 
     // Poll every 30 seconds without toggling the loading spinner
@@ -137,7 +126,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [isConnected]);
+  }, []);
 
   // addNode function to register the gateway stellar address
   const addNode = useCallback(

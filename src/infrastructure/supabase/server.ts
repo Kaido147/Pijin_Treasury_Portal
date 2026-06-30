@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
 /**
@@ -41,33 +42,25 @@ export async function createClient() {
 }
 
 /**
- * Creates a Supabase client with the SERVICE ROLE key.
+ * Creates a privileged Supabase client with the SERVICE ROLE key.
  * Bypasses ALL Row Level Security. Use ONLY in trusted server contexts
  * (API routes, server actions) where you need admin-level DB access.
  *
+ * Uses @supabase/supabase-js directly (NOT @supabase/ssr) to avoid
+ * cookie injection that would cause PostgREST to downgrade the
+ * service role to the cookie's user JWT, re-enabling RLS.
+ *
  * NEVER import this in client components or expose its key.
  */
-export async function createServiceClient() {
-  const cookieStore = await cookies()
-
-  return createServerClient(
+export const createServiceClient = () => {
+  return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {
-            // Safe to ignore in read-only server component context
-          }
-        },
-      },
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
     }
   )
 }

@@ -7,7 +7,7 @@ import {
     humanizeEvents,
     rpc
 } from '@stellar/stellar-sdk';
-import { createServiceClient } from '@/infrastructure/supabase/server';
+import { createServiceClient, createClient } from '@/infrastructure/supabase/server';
 import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 import { inspect } from 'node:util';
@@ -88,9 +88,10 @@ function formatSimulationEvents(events: rpc.Api.SimulateTransactionErrorResponse
  *
  * Returns adminAddress on success, or NextResponse error on failure.
  */
-async function verifyDualGates(supabase: Awaited<ReturnType<typeof createServiceClient>>) {
+async function verifyDualGates() {
     // ── GATE 1: Supabase Identity Check ──
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const userClient = await createClient();
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
 
     if (userError || !user) {
         return {
@@ -136,7 +137,7 @@ export async function POST(request: Request) {
         const supabase = await createServiceClient();
 
         // Dual-gate auth
-        const auth = await verifyDualGates(supabase);
+        const auth = await verifyDualGates();
         if ('error' in auth) return auth.error;
         const { adminAddress } = auth;
 
@@ -252,10 +253,6 @@ export async function POST(request: Request) {
 export async function GET() {
     try {
         const supabase = await createServiceClient();
-
-        // Dual-gate auth for read operations too
-        const auth = await verifyDualGates(supabase);
-        if ('error' in auth) return auth.error;
 
         const { data, error } = await supabase
             .from('nodes')
