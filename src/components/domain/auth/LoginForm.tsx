@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 
 import { loginSchema, type LoginFormValues } from "@/core/validators/auth";
 import { createClient } from "@/infrastructure/supabase/client";
@@ -26,6 +26,7 @@ export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [keepSignedIn, setKeepSignedIn] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -94,13 +95,27 @@ export function LoginForm() {
                 Password
               </FormLabel>
               <FormControl>
-                <Input
-                  type="password"
-                  placeholder="••••••••••••••••"
-                  autoComplete="current-password"
-                  className="h-12 px-4 text-base transition-all focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary"
-                  {...field}
-                />
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••••••••••"
+                    autoComplete="current-password"
+                    className="h-12 pl-4 pr-10 text-base transition-all focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary"
+                    {...field}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? (
+                      <Eye className="size-4" />
+                    ) : (
+                      <EyeOff className="size-4" />
+                    )}
+                  </button>
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>

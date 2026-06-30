@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { GatewayNode } from '@/core/types';
 import { useStellarWallet } from '@/hooks/useStellarWallet';
 
@@ -87,46 +87,46 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Fetch nodes on mount and optionally poll
-  useEffect(() => {
-    let isMounted = true;
+  // Stable ref so addNode can call fetchNodes without a stale closure
+  const isMountedRef = useRef(true);
 
-    async function fetchNodes(initialLoad: boolean = false) {
-      try {
-        if (initialLoad) {
-          setIsLoading(true);
-        }
-        // Fetch all the nodes (gateways)
-        const res = await fetch('/api/gateways/register', { cache: 'no-store' });
+  const fetchNodes = useCallback(async (initialLoad: boolean = false) => {
+    try {
+      if (initialLoad) {
+        setIsLoading(true);
+      }
+      // Fetch all the nodes (gateways)
+      const res = await fetch('/api/gateways/register', { cache: 'no-store' });
 
-
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted) {
-            setNodes(data);
-          }
-        }
-      } catch (err) {
-        if (isMounted) {
-          setLoadError(err instanceof Error ? err.message : 'Unknown error');
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
+      if (res.ok) {
+        const data = await res.json();
+        if (isMountedRef.current) {
+          setNodes(data);
         }
       }
+    } catch (err) {
+      if (isMountedRef.current) {
+        setLoadError(err instanceof Error ? err.message : 'Unknown error');
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
+  }, []);
 
+  // Fetch nodes on mount and poll every 30 s
+  useEffect(() => {
+    isMountedRef.current = true;
     fetchNodes(true);
 
-    // Poll every 30 seconds without toggling the loading spinner
     const interval = setInterval(() => fetchNodes(false), 30000);
 
     return () => {
-      isMounted = false;
+      isMountedRef.current = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [fetchNodes]);
 
   // addNode function to register the gateway stellar address
   const addNode = useCallback(
@@ -152,24 +152,25 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
           throw new Error(formatRegisterError(errorData));
         }
 
-        const result: GatewayRegisterSuccessResponse = await res.json();
+        // Parse receipt to confirm success; node data comes from re-fetch, not this payload.
+        const _receipt: GatewayRegisterSuccessResponse = await res.json();
+
+        // Re-fetch from server — guarantees nodes state holds canonical DB rows, not receipt shape.
+        await fetchNodes(false);
+
+        setIsSubmitting(false);
+        setIsSuccess(true);
 
         setTimeout(() => {
-          setNodes((prev) => [...prev, result.node]);
-          setIsSubmitting(false);
-          setIsSuccess(true);
-
-          setTimeout(() => {
-            setIsSuccess(false);
-          }, 2000);
-        }, 1000);
+          setIsSuccess(false);
+        }, 2000);
 
       } catch (err: any) {
         setSubmitError(err.message);
         setIsSubmitting(false); // this unlocks the form if it fails
       }
     },
-    [nodes] // added nodes here so it always has the latest list
+    [nodes, fetchNodes]
   );
 
   const resetForm = useCallback(() => {

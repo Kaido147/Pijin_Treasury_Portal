@@ -13,7 +13,7 @@ export function GatewayNodeCard({ node, onFundClick }: GatewayNodeCardProps) {
   const StatusIcon = cfg.icon;
 
   return (
-    <div className="bg-white rounded-2xl px-6 py-5 flex items-center gap-5 shadow-card">
+    <div className="bg-white rounded-2xl px-4 py-4 lg:px-6 lg:py-5 flex flex-wrap items-center gap-x-4 gap-y-3 shadow-card">
       {/* Status icon */}
       <div
         className={cn(
@@ -52,7 +52,7 @@ export function GatewayNodeCard({ node, onFundClick }: GatewayNodeCardProps) {
       </div>
 
       {/* Balance */}
-      <div className="text-right shrink-0 hidden md:block">
+      <div className="text-right shrink-0 hidden lg:block">
         <div className="text-slate-500 text-[0.7rem]">Balance</div>
         <div className="font-mono font-semibold text-sm text-navy-900">
           {node.balance} XLM
@@ -72,7 +72,7 @@ export function GatewayNodeCard({ node, onFundClick }: GatewayNodeCardProps) {
         id={`fund-node-btn-${node.id}`}
         type="button"
         onClick={() => onFundClick(node.address)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl shrink-0 bg-navy-900 text-white text-[0.72rem] font-semibold transition-all hover:bg-navy-700"
+        className="flex items-center gap-1.5 px-4 py-2.5 lg:px-3 lg:py-1.5 rounded-xl shrink-0 bg-navy-900 text-white text-[0.72rem] font-semibold transition-all hover:bg-navy-700"
       >
         <Coins className="w-3 h-3" />
         Fund

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Server, CheckCircle2, Loader2, ChevronDown } from 'lucide-react';
 import { AVAILABLE_REGIONS } from '@/core/constants';
 import type { RegionCode } from '@/core/types';
@@ -32,20 +32,17 @@ export function RegisterNodeForm({
     onSubmit({ ...formData, region: formData.region });
   };
 
-  // Reset local fields when the success state auto-dismisses
-  const handleReset = () => {
-    setFormData({ name: '', address: '', region: '' });
-  };
-
-  // After success auto-dismisses, reset form fields
-  if (!isSuccess && !isSubmitting && formData.name && !formData.address) {
-    // intentionally empty — handled by parent
-  }
+  // Reset local fields when the success state triggers
+  useEffect(() => {
+    if (isSuccess) {
+      setFormData({ name: '', address: '', region: '' });
+    }
+  }, [isSuccess]);
 
   return (
     <div className="bg-white rounded-3xl overflow-hidden shadow-card-lg">
       {/* Header */}
-      <div className="px-7 py-5 border-b border-surface-raised">
+      <div className="px-4 py-4 lg:px-7 lg:py-5 border-b border-surface-raised">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-gradient-to-br from-navy-900 to-navy-700">
             <Server className="w-4 h-4 text-white" />
@@ -77,9 +74,9 @@ export function RegisterNodeForm({
         <form
           id="register-node-form"
           onSubmit={handleSubmit}
-          className="px-7 py-6 space-y-4"
+          className="px-4 py-5 lg:px-7 lg:py-6 space-y-4"
         >
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-navy-900 text-[0.78rem] font-bold block">
                 Node Name
@@ -93,7 +90,7 @@ export function RegisterNodeForm({
                 placeholder="Manila Gateway Alpha"
                 required
                 disabled={isSubmitting}
-                className="w-full px-4 py-2.5 rounded-xl border-[1.5px] border-border-default bg-slate-50 text-sm text-navy-900 outline-none transition-all focus:border-navy-700 focus:bg-white"
+                className="w-full px-4 py-2.5 rounded-xl border-[1.5px] border-border-default bg-slate-50 text-base lg:text-sm text-navy-900 outline-none transition-all focus:border-navy-700 focus:bg-white"
               />
             </div>
             <div className="space-y-1.5">
@@ -112,7 +109,7 @@ export function RegisterNodeForm({
                   }
                   required
                   disabled={isSubmitting}
-                  className="w-full appearance-none px-4 py-2.5 pr-10 rounded-xl border-[1.5px] border-border-default bg-slate-50 text-sm text-navy-900 outline-none transition-all focus:border-navy-700 focus:bg-white cursor-pointer"
+                  className="w-full appearance-none px-4 py-2.5 pr-10 rounded-xl border-[1.5px] border-border-default bg-slate-50 text-base lg:text-sm text-navy-900 outline-none transition-all focus:border-navy-700 focus:bg-white cursor-pointer"
                 >
                   <option value="" disabled>
                     — Select region —
@@ -141,7 +138,7 @@ export function RegisterNodeForm({
               placeholder="G… (56-character Stellar public key)"
               required
               disabled={isSubmitting}
-              className="w-full px-4 py-2.5 rounded-xl border-[1.5px] border-border-default bg-slate-50 text-[0.78rem] font-mono text-navy-900 outline-none transition-all focus:border-navy-700 focus:bg-white"
+              className="w-full px-4 py-2.5 rounded-xl border-[1.5px] border-border-default bg-slate-50 text-base lg:text-[0.78rem] font-mono text-navy-900 outline-none transition-all focus:border-navy-700 focus:bg-white"
             />
           </div>
 

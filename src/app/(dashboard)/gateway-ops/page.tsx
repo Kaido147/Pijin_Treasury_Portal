@@ -41,15 +41,16 @@ export default function GatewayOpsPage() {
   };
 
   // Calculate stats dynamically
-  const activeNodesCount = nodes.filter(
-    (node) => node.status === "active",
-  ).length;
-  const totalNodesCount = nodes.length;
+  const activeNodesCount = nodes
+    .filter(Boolean)
+    .filter((node) => node?.status === "active").length;
+
+  const totalNodesCount = nodes.filter(Boolean).length;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Page header with dynamic count & register button */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-y-2">
         <div>
           <h1 className="text-navy-900 font-extrabold text-2xl">
             Gateway Operations
@@ -63,7 +64,7 @@ export default function GatewayOpsPage() {
         <button
           onClick={() => setShowRegisterForm((prev) => !prev)}
           className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all",
+            "flex items-center gap-2 px-4 py-2.5 lg:py-2 rounded-full text-sm font-semibold transition-all h-11 lg:h-auto",
             showRegisterForm
               ? "bg-slate-100 border border-border-default text-slate-700 hover:bg-slate-200"
               : "bg-navy-900 text-white hover:bg-navy-800 shadow-md",
@@ -109,7 +110,7 @@ export default function GatewayOpsPage() {
             description="Register your first gateway node using the form."
           />
         ) : (
-          nodes.map((node) => (
+          nodes.filter(Boolean).map((node) => (
             <GatewayNodeCard
               key={node.id}
               node={node}
@@ -121,7 +122,7 @@ export default function GatewayOpsPage() {
 
       {/*  Fund Node Dialog */}
       <Dialog open={fundDialogOpen} onOpenChange={handleDialogClose}>
-        <DialogContent className="max-w-lg p-0 overflow-hidden rounded-3xl border-0">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg p-0 overflow-hidden rounded-3xl border-0">
           <DialogHeader className="sr-only">
             <DialogTitle>Fund Gateway Node</DialogTitle>
             <DialogDescription>
