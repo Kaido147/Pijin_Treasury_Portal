@@ -1,6 +1,6 @@
 import { Keypair } from '@stellar/stellar-sdk';
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase'
+import { createServiceClient } from '@/infrastructure/supabase/server';
 import { cookies } from 'next/headers';
 import { SignJWT } from 'jose';
 
@@ -8,13 +8,25 @@ const secretJwtKey = process.env.JWT_SECRET_KEY;
 
 export async function POST(request: Request) {
     try {
+        // ── GATE 1: Verify Supabase Identity Session ──
+        const supabase = await createServiceClient();
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+            return NextResponse.json(
+                { error: 'Supabase session invalid or expired. Please log in again.' },
+                { status: 401 }
+            );
+        }
+
+        // ── Parse request body ──
         const { adminAddress, signature, nonce } = await request.json();
 
         if (!adminAddress) {
             return NextResponse.json({ error: 'adminAddress is required' }, { status: 400 });
         }
 
-        // Generate Nonce Flow (when no signature is provided)
+        // ── Generate Nonce Flow (when no signature is provided) ──
         if (!signature) {
             // Check the admin table first
             const { data: adminData, error: adminError } = await supabase
@@ -43,7 +55,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ nonce: newNonce });
         }
 
-        // Verification Flow (when signature is provided)
+        // ── Verification Flow (when signature is provided) ──
 
         // Fetch the actual nonce from Supabase to ensure it matches what was sent
         const { data: verifyData, error: verifyError } = await supabase
@@ -90,7 +102,7 @@ export async function POST(request: Request) {
             .update({ current_nonce: null })
             .eq('stellar_address', adminAddress);
 
-        // Generate a secure JWT
+        // ── Issue Gate 2 JWT (Cryptographic Authority Token) ──
         const secret = new TextEncoder().encode(secretJwtKey);
         const alg = 'HS256';
 

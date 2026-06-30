@@ -7,7 +7,7 @@ import {
     humanizeEvents,
     rpc
 } from '@stellar/stellar-sdk';
-import { supabase } from '@/lib/supabase';
+import { createServiceClient } from '@/infrastructure/supabase/server';
 import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 import { inspect } from 'node:util';
@@ -49,18 +49,6 @@ function mapStoredNode(node: StoredGatewayNode): GatewayNode {
     };
 }
 
-async function getAdminAddressFromSession(): Promise<string | null> {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('admin_session')?.value;
-
-    if (!token) return null;
-
-    const secret = new TextEncoder().encode(requireEnv('JWT_SECRET_KEY'));
-    const { payload } = await jwtVerify(token, secret);
-
-    return typeof payload.adminAddress === 'string' ? payload.adminAddress : null;
-}
-
 function toJsonSafe(value: unknown): unknown {
     if (typeof value === 'bigint') return value.toString();
     if (Array.isArray(value)) return value.map(toJsonSafe);
@@ -88,27 +76,69 @@ function formatSimulationEvents(events: rpc.Api.SimulateTransactionErrorResponse
     }
 }
 
-export async function POST(request: Request) {
-    // Store the cookie session
+// ═══════════════════════════════════════════════════════════
+// Dual-Gate Authentication Helper
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Verifies BOTH security gates for mutating API operations.
+ *
+ * Gate 1: Supabase Auth session (sb-access-token cookie)
+ * Gate 2: Stellar wallet JWT (admin_session cookie)
+ *
+ * Returns adminAddress on success, or NextResponse error on failure.
+ */
+async function verifyDualGates(supabase: Awaited<ReturnType<typeof createServiceClient>>) {
+    // ── GATE 1: Supabase Identity Check ──
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+        return {
+            error: NextResponse.json(
+                { error: 'Supabase session invalid or expired. Please log in again.' },
+                { status: 401 }
+            )
+        };
+    }
+
+    // ── GATE 2: Stellar Wallet JWT Check ──
     const cookieStore = await cookies();
     const token = cookieStore.get('admin_session')?.value;
 
-    // Check if there is a token
     if (!token) {
-        return NextResponse.json({ error: 'Token missing from cookies' }, { status: 401 });
+        return {
+            error: NextResponse.json(
+                { error: 'Wallet session missing. Please connect wallet and sign challenge.' },
+                { status: 401 }
+            )
+        };
     }
 
-    try {
-        // Encode the JWT secret key
-        const secret = new TextEncoder().encode(requireEnv('JWT_SECRET_KEY'));
-        // Verify the token
-        const { payload } = await jwtVerify(token, secret);
-        const adminAddress = payload.adminAddress as string;
+    const secret = new TextEncoder().encode(requireEnv('JWT_SECRET_KEY'));
+    const { payload } = await jwtVerify(token, secret);
+    const adminAddress = payload.adminAddress as string;
 
-        // Guard clause to check the payload if it's valid admin address
-        if (!adminAddress) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+    if (!adminAddress) {
+        return {
+            error: NextResponse.json({ error: 'Invalid wallet session token' }, { status: 401 })
+        };
+    }
+
+    return { adminAddress };
+}
+
+// ═══════════════════════════════════════════════════════════
+// POST — Register a gateway node on-chain + database
+// ═══════════════════════════════════════════════════════════
+
+export async function POST(request: Request) {
+    try {
+        const supabase = await createServiceClient();
+
+        // Dual-gate auth
+        const auth = await verifyDualGates(supabase);
+        if ('error' in auth) return auth.error;
+        const { adminAddress } = auth;
 
         // Proceed to requesting JSON data from the frontend
         const data = await request.json() as RegisterGatewayRequest;
@@ -215,13 +245,17 @@ export async function POST(request: Request) {
     }
 }
 
+// ═══════════════════════════════════════════════════════════
+// GET — List all registered gateway nodes
+// ═══════════════════════════════════════════════════════════
+
 export async function GET() {
     try {
-        const adminAddress = await getAdminAddressFromSession();
+        const supabase = await createServiceClient();
 
-        if (!adminAddress) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        // Dual-gate auth for read operations too
+        const auth = await verifyDualGates(supabase);
+        if ('error' in auth) return auth.error;
 
         const { data, error } = await supabase
             .from('nodes')
