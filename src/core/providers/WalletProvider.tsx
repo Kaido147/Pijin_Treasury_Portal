@@ -84,9 +84,28 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setBalance(result.balance);
       setNetwork('testnet');
       setIsConnected(true);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Wallet connection failed.';
-      toast.error(message);
+    } catch (err: any) {
+      // Catch the declined signing error message
+      const rawError = err?.message || err?.toString() || '';
+      const lowerError = rawError.toLowerCase();
+
+      const isRejected = lowerError.includes('reject') ||
+        lowerError.includes('decline') ||
+        lowerError.includes('cancel');
+
+      let finalMessage = 'Wallet Connection Failed';
+
+      if (isRejected) {
+        finalMessage = 'Action canceled by user.';
+      } else if (err instanceof Error) {
+        finalMessage = err.message;
+      } else if (typeof err === 'string' && err.trim() !== '') {
+        finalMessage = err;
+      }
+
+      toast.error(finalMessage);
+      setPublicKey(null);
+      setIsConnected(false);
     } finally {
       setIsConnecting(false);
     }
@@ -100,7 +119,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setBalance(0);
       setIsConnected(false);
       localStorage.removeItem('admin_session');
-      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => { }); // Automatically signs out when the sign message is decline
     } finally {
       setIsConnecting(false);
     }
