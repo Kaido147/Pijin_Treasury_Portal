@@ -36,7 +36,7 @@ export interface GatewayNode {
   id: string;
   name: string;
   address: string;
-  region: RegionCode;
+  region: string;
   status: NodeStatus;
   uptime: string;
   balance: string;

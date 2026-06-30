@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "skills": {
+    "agentic-payments": {
+      "source": "stellar/stellar-dev-skill",
+      "sourceType": "github",
+      "skillPath": "skills/agentic-payments/SKILL.md",
+      "computedHash": "0a2495bd73f67bc9dfb704d108af52a2449710fa9ace68b5fd1326ab09a4ef8b"
+    },
+    "assets": {
+      "source": "stellar/stellar-dev-skill",
+      "sourceType": "github",
+      "skillPath": "skills/assets/SKILL.md",
+      "computedHash": "16c00358fa5ba0cc56d448152c0fd508e071b8984b931e71b1198d9465dacbf9"
+    },
+    "dapp": {
+      "source": "stellar/stellar-dev-skill",
+      "sourceType": "github",
+      "skillPath": "skills/dapp/SKILL.md",
+      "computedHash": "382bd695bb3ac8c35a6b699558f0cafa43ec8a32a15608b618abad312b5a1b40"
+    },
+    "data": {
+      "source": "stellar/stellar-dev-skill",
+      "sourceType": "github",
+      "skillPath": "skills/data/SKILL.md",
+      "computedHash": "c7c38e73ad94f216bdaa03a4ed14d3c29314a068f7f7057f3e01855f722f9711"
+    },
+    "soroban": {
+      "source": "stellar/stellar-dev-skill",
+      "sourceType": "github",
+      "skillPath": "skills/soroban/SKILL.md",
+      "computedHash": "80c7bd3a3c89d4e3134603b2bf203de1a6ca8e011e966cecdd1651e1af4c0923"
+    },
+    "standards": {
+      "source": "stellar/stellar-dev-skill",
+      "sourceType": "github",
+      "skillPath": "skills/standards/SKILL.md",
+      "computedHash": "a1fff1ebbd3dd0b9336d3d47a545386be72c45e5a985d78eb82341de68311c8a"
+    },
+    "supabase": {
+      "source": "supabase/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/supabase/SKILL.md",
+      "computedHash": "61638e85394d2e39d1109cbf607593afb9733e0de19cdf0b52ec9bc32d95ea74"
+    },
+    "zk-proofs": {
+      "source": "stellar/stellar-dev-skill",
+      "sourceType": "github",
+      "skillPath": "skills/zk-proofs/SKILL.md",
+      "computedHash": "1425ff3c98ee963bcb0bb13d620df0d637e969201797e0974c1debe0dfa6c885"
+    }
+  }
+}
