@@ -86,7 +86,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setIsConnected(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Wallet connection failed.';
-      toast.error(message);
+      if (message === 'WALLET_SIGN_REJECTED') {
+        toast.error('Signature request cancelled. Connect wallet to try again.');
+      } else {
+        toast.error(message);
+      }
     } finally {
       setIsConnecting(false);
     }

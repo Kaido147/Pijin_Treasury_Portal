@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Server, Plus } from "lucide-react";
+import { toast } from "sonner";
+import type { RegistryFailureCode } from "@/hooks/useGatewayNodes";
 import { useGatewayNodes } from "@/hooks/useGatewayNodes";
 import { GatewayNodeCard } from "@/components/domain/GatewayNodeCard";
 import { RegisterNodeForm } from "@/components/domain/RegisterNodeForm";
@@ -17,14 +19,36 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 
+// ─── Failure-Code Toast Title Map ───────────────────────
+
+const FAILURE_TITLES: Record<RegistryFailureCode, string> = {
+  RELAYER_UNFUNDED:    'Relayer Unfunded',
+  RESOURCE_EXHAUSTION: 'Resource Limit Exceeded',
+  STATE_COLLISION:     'Gateway Already Registered',
+  AUTH_FAILED:         'Authentication Failed',
+  UNKNOWN:             'Registration Failed',
+};
+
+
 export default function GatewayOpsPage() {
-  const { nodes, addNode, isSubmitting, isSuccess, isLoading, loadError, submitError } = useGatewayNodes(); // hooks for managing node registration
+  const { nodes, addNode, txState, isSubmitting, isSuccess, isLoading, loadError } = useGatewayNodes();
   const [showRegisterForm, setShowRegisterForm] = useState(false);
 
   // Fund-node modal state
   const [fundDialogOpen, setFundDiaglogOpen] = useState<boolean>(false);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const { formState, txHash, submitTransfer, resetTransfer } = useTransfer();
+
+  // Event-driven: capture addNode return; fire toast immediately on failure
+  const handleRegistration = async (data: { name: string; address: string; region: string }) => {
+    const result = await addNode(data);
+    if (result?.status === 'FAILED') {
+      toast.error(
+        FAILURE_TITLES[result.failureCode ?? 'UNKNOWN'],
+        { description: result.failureMessage ?? undefined },
+      );
+    }
+  };
 
   const handleFundClick = (address: string): void => {
     setSelectedAddress(address);
@@ -78,22 +102,16 @@ export default function GatewayOpsPage() {
       {/* Conditional Registration Form (Spans full width when visible) */}
       {showRegisterForm && (
         <RegisterNodeForm
-          onSubmit={addNode} // addNode function to submit on smart contract
+          onSubmit={handleRegistration}
           isSubmitting={isSubmitting}
           isSuccess={isSuccess}
         />
       )}
 
-      {/* Error State */}
+      {/* Error State — Load */}
       {loadError && (
         <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-200">
           Failed to load gateway nodes: {loadError}
-        </div>
-      )}
-
-      {submitError && (
-        <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-200">
-          Failed to register gateway node: {submitError}
         </div>
       )}
 
