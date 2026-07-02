@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import {
     Address,
     Keypair,
@@ -267,6 +267,105 @@ export async function GET() {
         const nodes: GatewayNode[] = ((data ?? []) as StoredGatewayNode[]).map(mapStoredNode);
 
         return NextResponse.json(nodes);
+    } catch (error) {
+        console.error(error);
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// DELETE — De-whitelist (revoke) a gateway node on-chain + soft-delete in DB
+// ═══════════════════════════════════════════════════════════
+
+export async function DELETE(request: NextRequest) {
+    try {
+        const supabase = await createServiceClient();
+
+        // Dual-gate auth
+        const auth = await verifyDualGates();
+        if ('error' in auth) return auth.error;
+        const { adminAddress } = auth;
+
+        // Parse request body
+        const { address } = await request.json() as { address?: string };
+
+        if (!address) {
+            return NextResponse.json({ error: 'address is required' }, { status: 400 });
+        }
+
+        // Initialize the RPC connection and load server's secret key
+        const serverUrl = requireEnv('SOROBAN_RPC_URL');
+        const adminSecretKey = requireEnv('ADMIN_SECRET_KEY');
+        const contractId = requireEnv('CONTRACT_ID');
+        const networkPassphrase = requireEnv('STELLAR_NETWORK_PASSPHRASE');
+        const server = new rpc.Server(serverUrl);
+
+        const adminKeypair = Keypair.fromSecret(adminSecretKey);
+        const contract = new Contract(contractId);
+        const adminKeyPair = new Address(adminKeypair.publicKey());
+        const gatewayAddress = new Address(address);
+
+        // Verify the calling admin matches the relayer keypair
+        if (adminAddress !== adminKeypair.publicKey()) {
+            return NextResponse.json({ error: 'Admin address mismatch' }, { status: 403 });
+        }
+
+        // Fetch source account sequence
+        const sourceAccount = await server.getAccount(adminKeypair.publicKey());
+
+        // Build remove_gateway transaction
+        let tx = new TransactionBuilder(sourceAccount, {
+            fee: '100',
+            networkPassphrase,
+        })
+            .addOperation(
+                contract.call('remove_gateway',
+                    adminKeyPair.toScVal(),
+                    gatewayAddress.toScVal(),
+                )
+            )
+            .setTimeout(30)
+            .build();
+
+        // Simulate
+        const simulation = await server.simulateTransaction(tx);
+
+        if (rpc.Api.isSimulationError(simulation)) {
+            const events = formatSimulationEvents(simulation.events);
+            console.error('Simulation Error:', simulation.error);
+            return NextResponse.json({
+                error: 'Contract simulation failed',
+                details: simulation.error || 'Unknown simulation error',
+                events
+            }, { status: 400 });
+        }
+
+        // Assemble, sign, submit
+        tx = rpc.assembleTransaction(tx, simulation).build();
+        tx.sign(adminKeypair);
+
+        const txResponse = await server.sendTransaction(tx);
+
+        if (txResponse.status === 'ERROR') {
+            return NextResponse.json({ error: 'Transaction rejected by network' }, { status: 500 });
+        }
+
+        // Soft-delete: mark node as inactive in DB (preserve the record)
+        const { error: updateError } = await supabase
+            .from('nodes')
+            .update({ status: 'inactive' })
+            .eq('stellar_address', address);
+
+        if (updateError) {
+            console.error('database error:', updateError);
+            return NextResponse.json({ error: updateError.message }, { status: 500 });
+        }
+
+        return NextResponse.json({
+            success: true,
+            txHash: txResponse.hash,
+        }, { status: 200 });
+
     } catch (error) {
         console.error(error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

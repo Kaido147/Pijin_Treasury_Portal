@@ -30,7 +30,7 @@ export interface WalletInfo {
 
 export type RegionCode = 'SEA-01' | 'SEA-02' | 'SEA-03' | 'SEA-04' | 'SEA-05';
 
-export type NodeStatus = 'active' | 'syncing' | 'offline';
+export type NodeStatus = 'active' | 'syncing' | 'offline' | 'inactive';
 
 export interface GatewayNode {
   id: string;

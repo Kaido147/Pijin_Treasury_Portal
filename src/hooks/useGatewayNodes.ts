@@ -46,7 +46,10 @@ const IDLE_STATE: RegistryTxState = {
 
 export interface UseGatewayNodesReturn {
   nodes: GatewayNode[];
+  activeNodes: GatewayNode[];
+  revokedNodes: GatewayNode[];
   addNode: (data: { name: string; address: string; region: string }) => Promise<RegistryTxState | void>;
+  removeNode: (address: string) => Promise<RegistryTxState | void>;
   /** Unified transaction state machine */
   txState: RegistryTxState;
   /** Derived — backward compat for RegisterNodeForm */
@@ -284,6 +287,52 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
     [nodes, fetchNodes]
   );
 
+  // removeNode function to de-whitelist a gateway node on-chain
+  const removeNode = useCallback(
+    async (address: string): Promise<RegistryTxState | void> => {
+      setTxState({ status: 'BROADCASTING', failureCode: null, failureMessage: null });
+
+      try {
+        const res = await fetch('/api/gateways/register', {
+          method: 'DELETE',
+          body: JSON.stringify({ address }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!res.ok) {
+          const errorData: GatewayRegisterErrorResponse = await res.json();
+          const classified = classifyError(errorData, res.status);
+          const failState: RegistryTxState = {
+            status: 'FAILED',
+            failureCode: classified.failureCode,
+            failureMessage: classified.failureMessage,
+          };
+          setTxState(failState);
+          return failState;
+        }
+
+        // Resync from server — guarantees canonical DB state
+        await fetchNodes(false);
+
+        setTxState({ status: 'SUCCESS', failureCode: null, failureMessage: null });
+
+        setTimeout(() => {
+          setTxState(IDLE_STATE);
+        }, 2000);
+
+      } catch (err: any) {
+        const failState: RegistryTxState = {
+          status: 'FAILED',
+          failureCode: 'UNKNOWN',
+          failureMessage: err.message || 'An unexpected error occurred',
+        };
+        setTxState(failState);
+        return failState;
+      }
+    },
+    [fetchNodes]
+  );
+
   const resetForm = useCallback(() => {
     setTxState(IDLE_STATE);
   }, []);
@@ -293,9 +342,16 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
   const isSuccess = txState.status === 'SUCCESS';
   const submitError = txState.failureMessage;
 
+  // Derived arrays — segmented tab support
+  const activeNodes = nodes.filter(n => n.status === 'active' || n.status === 'syncing');
+  const revokedNodes = nodes.filter(n => n.status === 'inactive');
+
   return {
     nodes,
+    activeNodes,
+    revokedNodes,
     addNode,
+    removeNode,
     txState,
     isSubmitting,
     isSuccess,

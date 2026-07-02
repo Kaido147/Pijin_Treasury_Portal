@@ -43,6 +43,7 @@ export const NODE_STATUS_CONFIG: Record<NodeStatus, StatusConfig> = {
   active: { label: 'Active', textClass: 'text-green-600', bgClass: 'bg-green-100', icon: Wifi },
   syncing: { label: 'Syncing', textClass: 'text-amber-600', bgClass: 'bg-amber-100', icon: Loader2 },
   offline: { label: 'Offline', textClass: 'text-red-600', bgClass: 'bg-red-100', icon: WifiOff },
+  inactive: { label: 'Revoked', textClass: 'text-slate-500', bgClass: 'bg-slate-200', icon: WifiOff },
 };
 
 // ─── Transaction Status ─────────────────────────────────
