@@ -29,7 +29,14 @@ export interface WalletInfo {
 
 // ─── Gateway ────────────────────────────────────────────
 
-export type RegionCode = 'SEA-01' | 'SEA-02' | 'SEA-03' | 'SEA-04' | 'SEA-05';
+export type RegionCode = string;
+
+/** A region row from the `regions` Supabase table */
+export interface Region {
+  id: string;
+  slug: string;
+  name: string;
+}
 
 export type NodeStatus = 'active' | 'syncing' | 'offline' | 'inactive';
 
