@@ -1,11 +1,10 @@
 import { NextResponse, NextRequest } from 'next/server';
 import {
     Address,
-    Keypair,
     TransactionBuilder,
     Contract,
     humanizeEvents,
-    rpc
+    rpc,
 } from '@stellar/stellar-sdk';
 import { createServiceClient, createClient } from '@/infrastructure/supabase/server';
 import { cookies } from 'next/headers';
@@ -17,6 +16,7 @@ type RegisterGatewayRequest = {
     name?: string;
     address?: string;
     region?: string;
+    walletPublicKey?: string;
 };
 
 function requireEnv(name: string): string {
@@ -129,7 +129,7 @@ async function verifyDualGates() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// POST — Register a gateway node on-chain + database
+// POST — Build unsigned register_gateway XDR for client signing
 // ═══════════════════════════════════════════════════════════
 
 export async function POST(request: Request) {
@@ -141,14 +141,16 @@ export async function POST(request: Request) {
         if ('error' in auth) return auth.error;
         const { adminAddress } = auth;
 
-        // Proceed to requesting JSON data from the frontend
         const data = await request.json() as RegisterGatewayRequest;
 
-        if (!data.name || !data.address || !data.region) {
-            return NextResponse.json({ error: 'name, address, and region are required' }, { status: 400 });
+        if (!data.name || !data.address || !data.region || !data.walletPublicKey) {
+            return NextResponse.json(
+                { error: 'name, address, region, and walletPublicKey are required' },
+                { status: 400 }
+            );
         }
 
-        // Query the admin id first
+        // Verify admin exists in DB
         const { data: admin, error: adminError } = await supabase
             .from('admin')
             .select('id')
@@ -159,30 +161,31 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'admin profile not found' }, { status: 404 });
         }
 
-        // Initialize the RPC connection and load your server's secret key
-        const serverUrl = requireEnv('SOROBAN_RPC_URL');
-        const adminSecretKey = requireEnv('ADMIN_SECRET_KEY');
+        const serverUrl = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ?? requireEnv('NEXT_PUBLIC_SOROBAN_RPC_URL');
         const contractId = requireEnv('CONTRACT_ID');
-        const networkPassphrase = requireEnv('STELLAR_NETWORK_PASSPHRASE');
+        const networkPassphrase = process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE ?? requireEnv('NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE');
         const server = new rpc.Server(serverUrl);
 
-        // The server's wallet that pays the gas fee
-        const adminKeypair = Keypair.fromSecret(adminSecretKey);
-        const contract = new Contract(contractId);
-        const adminKeyPair = new Address(adminKeypair.publicKey());
-        const gatewayAddress = new Address(data.address);
+        // adminAddress from JWT — used as the contract admin arg (not the fee payer)
+        // walletPublicKey — the connected wallet that pays gas and signs
+        let adminKeyPair: Address;
+        let gatewayAddress: Address;
+        try {
+            adminKeyPair = new Address(adminAddress);
+            gatewayAddress = new Address(data.address);
+        } catch {
+            return NextResponse.json({ error: 'Invalid Stellar Public Key format.' }, { status: 400 });
+        }
 
-        // Fetch the treasury account details to get the current sequence number
-        const sourceAccount = await server.getAccount(adminKeypair.publicKey());
+        // Source account = wallet that pays gas (sequence increments on wallet, not server key)
+        const sourceAccount = await server.getAccount(data.walletPublicKey);
 
-        // Build the initial transaction
-        // This assumes your smart contract has a function named 'register_gateway'
         let tx = new TransactionBuilder(sourceAccount, {
-            fee: '100', // This is just a base fee, Soroban will calculate the real fee next
+            fee: '100',
             networkPassphrase,
         })
             .addOperation(
-                contract.call('register_gateway',
+                new Contract(contractId).call('register_gateway',
                     adminKeyPair.toScVal(),
                     gatewayAddress.toScVal(),
                 )
@@ -190,8 +193,7 @@ export async function POST(request: Request) {
             .setTimeout(30)
             .build();
 
-        // Simulate the transaction
-        // Soroban requires simulation to calculate exact gas fees and storage footprints
+        // Simulate to calculate exact Soroban fees + footprint
         const simulation = await server.simulateTransaction(tx);
 
         if (rpc.Api.isSimulationError(simulation)) {
@@ -205,39 +207,11 @@ export async function POST(request: Request) {
             }, { status: 400 });
         }
 
-        // Assemble the final transaction with the simulated data and sign it
-        tx = rpc.assembleTransaction(tx, simulation).build();
-        tx.sign(adminKeypair);
+        // Assemble with real fees — do NOT sign server-side
+        const assembled = rpc.assembleTransaction(tx, simulation).build();
 
-        // Submit to the Stellar network
-        const txResponse = await server.sendTransaction(tx);
-
-        if (txResponse.status === 'ERROR') {
-            return NextResponse.json({ error: 'Transaction rejected by network' }, { status: 500 });
-        }
-
-        // Only runs if the blockchain transaction was successfully sent
-        const { data: newNode, error: nodeError } = await supabase
-            .from('nodes')
-            .insert({
-                name: data.name,
-                stellar_address: data.address, // the gateway stellar address
-                region: data.region,
-                registered_by: admin.id, // uses the verified UUID from step 2
-                status: 'active'
-            })
-            .select()
-            .single();
-
-        if (nodeError) {
-            console.error('database error:', nodeError);
-            return NextResponse.json({ error: nodeError.message }, { status: 500 });
-        }
-
-        // Return success to the frontend
         return NextResponse.json({
-            success: true,
-            txHash: txResponse.hash
+            unsignedXdr: assembled.toEnvelope().toXDR('base64'),
         }, { status: 200 });
 
     } catch (error) {
@@ -274,52 +248,51 @@ export async function GET() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// DELETE — De-whitelist (revoke) a gateway node on-chain + soft-delete in DB
+// DELETE — Build unsigned remove_gateway XDR for client signing
 // ═══════════════════════════════════════════════════════════
 
 export async function DELETE(request: NextRequest) {
     try {
-        const supabase = await createServiceClient();
-
         // Dual-gate auth
         const auth = await verifyDualGates();
         if ('error' in auth) return auth.error;
         const { adminAddress } = auth;
 
-        // Parse request body
-        const { address } = await request.json() as { address?: string };
+        const { address, walletPublicKey } = await request.json() as {
+            address?: string;
+            walletPublicKey?: string;
+        };
 
-        if (!address) {
-            return NextResponse.json({ error: 'address is required' }, { status: 400 });
+        if (!address || !walletPublicKey) {
+            return NextResponse.json(
+                { error: 'address and walletPublicKey are required' },
+                { status: 400 }
+            );
         }
 
-        // Initialize the RPC connection and load server's secret key
-        const serverUrl = requireEnv('SOROBAN_RPC_URL');
-        const adminSecretKey = requireEnv('ADMIN_SECRET_KEY');
+        const serverUrl = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ?? requireEnv('NEXT_PUBLIC_SOROBAN_RPC_URL');
         const contractId = requireEnv('CONTRACT_ID');
-        const networkPassphrase = requireEnv('STELLAR_NETWORK_PASSPHRASE');
+        const networkPassphrase = process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE ?? requireEnv('NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE');
         const server = new rpc.Server(serverUrl);
 
-        const adminKeypair = Keypair.fromSecret(adminSecretKey);
-        const contract = new Contract(contractId);
-        const adminKeyPair = new Address(adminKeypair.publicKey());
-        const gatewayAddress = new Address(address);
-
-        // Verify the calling admin matches the relayer keypair
-        if (adminAddress !== adminKeypair.publicKey()) {
-            return NextResponse.json({ error: 'Admin address mismatch' }, { status: 403 });
+        let adminKeyPair: Address;
+        let gatewayAddress: Address;
+        try {
+            adminKeyPair = new Address(adminAddress);
+            gatewayAddress = new Address(address);
+        } catch {
+            return NextResponse.json({ error: 'Invalid Stellar Public Key format.' }, { status: 400 });
         }
 
-        // Fetch source account sequence
-        const sourceAccount = await server.getAccount(adminKeypair.publicKey());
+        // Source account = wallet that pays gas
+        const sourceAccount = await server.getAccount(walletPublicKey);
 
-        // Build remove_gateway transaction
         let tx = new TransactionBuilder(sourceAccount, {
             fee: '100',
             networkPassphrase,
         })
             .addOperation(
-                contract.call('remove_gateway',
+                new Contract(contractId).call('remove_gateway',
                     adminKeyPair.toScVal(),
                     gatewayAddress.toScVal(),
                 )
@@ -327,7 +300,6 @@ export async function DELETE(request: NextRequest) {
             .setTimeout(30)
             .build();
 
-        // Simulate
         const simulation = await server.simulateTransaction(tx);
 
         if (rpc.Api.isSimulationError(simulation)) {
@@ -340,31 +312,183 @@ export async function DELETE(request: NextRequest) {
             }, { status: 400 });
         }
 
-        // Assemble, sign, submit
-        tx = rpc.assembleTransaction(tx, simulation).build();
-        tx.sign(adminKeypair);
-
-        const txResponse = await server.sendTransaction(tx);
-
-        if (txResponse.status === 'ERROR') {
-            return NextResponse.json({ error: 'Transaction rejected by network' }, { status: 500 });
-        }
-
-        // Soft-delete: mark node as inactive in DB (preserve the record)
-        const { error: updateError } = await supabase
-            .from('nodes')
-            .update({ status: 'inactive' })
-            .eq('stellar_address', address);
-
-        if (updateError) {
-            console.error('database error:', updateError);
-            return NextResponse.json({ error: updateError.message }, { status: 500 });
-        }
+        // Assemble — return unsigned envelope XDR
+        const assembled = rpc.assembleTransaction(tx, simulation).build();
 
         return NextResponse.json({
-            success: true,
-            txHash: txResponse.hash,
+            unsignedXdr: assembled.toEnvelope().toXDR('base64'),
         }, { status: 200 });
+
+    } catch (error) {
+        console.error(error);
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// PATCH — Verification Oracle: on-chain confirm → then DB sync
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Security-critical verification oracle.
+ *
+ * Fetches the transaction from the Soroban ledger and verifies:
+ *   Gate A — TX status is SUCCESS on-chain
+ *   Gate B — Operation is invokeHostFunction (invokeContract variant)
+ *   Gate C — Contract address matches our deployed CONTRACT_ID
+ *   Gate D — Function name matches the requested action
+ *   Gate E — Gateway address extracted from on-chain TX args
+ *
+ * The stellar_address used for DB writes is sourced from the
+ * on-chain TX envelope ONLY — never trusted from the client body.
+ */
+export async function PATCH(request: NextRequest) {
+    try {
+        const supabase = await createServiceClient();
+
+        // Dual-gate auth
+        const auth = await verifyDualGates();
+        if ('error' in auth) return auth.error;
+        const { adminAddress } = auth;
+
+        const body = await request.json() as {
+            txHash?: string;
+            action?: 'register' | 'remove';
+            name?: string;
+            region?: string;
+        };
+
+        if (!body.txHash || !body.action) {
+            return NextResponse.json({ error: 'txHash and action are required' }, { status: 400 });
+        }
+
+        const serverUrl = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ?? requireEnv('NEXT_PUBLIC_SOROBAN_RPC_URL');
+        const expectedContractId = requireEnv('CONTRACT_ID');
+        const server = new rpc.Server(serverUrl);
+
+        // ── Gate A: Fetch TX from Soroban ledger ──
+        const txResult = await server.getTransaction(body.txHash);
+
+        if (txResult.status !== rpc.Api.GetTransactionStatus.SUCCESS) {
+            return NextResponse.json(
+                { error: `Transaction is not confirmed on-chain. Status: ${txResult.status}` },
+                { status: 400 }
+            );
+        }
+
+        const successTx = txResult as rpc.Api.GetSuccessfulTransactionResponse;
+
+        // ── Gate B: Inspect envelope structure ──
+        let onChainContractId: string;
+        let onChainFnName: string;
+        let onChainGatewayAddress: string;
+
+        try {
+            const envelope = successTx.envelopeXdr;
+            const txBody = envelope.v1().tx();
+            const ops = txBody.operations();
+
+            if (ops.length !== 1) {
+                throw new Error('Expected exactly one operation');
+            }
+
+            // Throws if not invokeHostFunction → guards Gate B automatically
+            const invocation = ops[0].body().invokeHostFunctionOp().hostFunction().invokeContract();
+
+            // ── Gate C: Contract address (invokeArgs[0] in flat layout) ──
+            // User-confirmed extraction: Address.fromScVal(invokeArgs[0]).toString()
+            onChainContractId = Address.fromScAddress(invocation.contractAddress()).toString();
+
+            // ── Gate D: Function name (invokeArgs[1] in flat layout) ──
+            onChainFnName = invocation.functionName().toString();
+
+            // ── Gate E: Gateway address (invokeArgs[3] in flat layout = fnArgs[1]) ──
+            // Contract signature: register_gateway(admin: Address, gateway: Address)
+            //   fnArgs[0] = admin scval  → invokeArgs[2] in flat layout
+            //   fnArgs[1] = gateway scval → invokeArgs[3] in flat layout (user-confirmed)
+            const fnArgs = invocation.args();
+            if (fnArgs.length < 2) {
+                throw new Error('Unexpected number of contract function arguments');
+            }
+            // User-confirmed: Address.fromScVal(invokeArgs[3]).toString()
+            onChainGatewayAddress = Address.fromScVal(fnArgs[1]).toString();
+
+        } catch (parseError) {
+            console.error('XDR parse error:', parseError);
+            return NextResponse.json(
+                { error: 'Failed to parse transaction envelope structure' },
+                { status: 400 }
+            );
+        }
+
+        // ── Enforce Gate C ──
+        if (onChainContractId !== expectedContractId) {
+            return NextResponse.json(
+                { error: 'Contract address mismatch — transaction targets unexpected contract' },
+                { status: 403 }
+            );
+        }
+
+        // ── Enforce Gate D ──
+        const expectedFn = body.action === 'register' ? 'register_gateway' : 'remove_gateway';
+        if (onChainFnName !== expectedFn) {
+            return NextResponse.json(
+                { error: `Function name mismatch — expected ${expectedFn}, got ${onChainFnName}` },
+                { status: 403 }
+            );
+        }
+
+        // ── All gates passed — write to Supabase ──
+        if (body.action === 'register') {
+            const { data: adminRecord, error: adminError } = await supabase
+                .from('admin')
+                .select('id')
+                .eq('stellar_address', adminAddress)
+                .single();
+
+            if (adminError || !adminRecord) {
+                return NextResponse.json({ error: 'admin profile not found' }, { status: 404 });
+            }
+
+            // Read-Then-Write: avoids 42P10 missing unique constraint on upsert
+            const { data: existingNode } = await supabase
+                .from('nodes')
+                .select('id')
+                .eq('stellar_address', onChainGatewayAddress)
+                .maybeSingle();
+
+            let nodeError;
+            if (existingNode) {
+                // Reactivation path
+                ({ error: nodeError } = await supabase
+                    .from('nodes')
+                    .update({ status: 'active', name: body.name || 'Unknown', region: body.region || 'UNKNOWN' })
+                    .eq('stellar_address', onChainGatewayAddress));
+            } else {
+                // New registration path
+                ({ error: nodeError } = await supabase
+                    .from('nodes')
+                    .insert({ stellar_address: onChainGatewayAddress, name: body.name || 'Unknown', region: body.region || 'UNKNOWN', status: 'active', registered_by: adminRecord.id }));
+            }
+
+            if (nodeError) {
+                console.error('database error:', nodeError);
+                return NextResponse.json({ error: nodeError.message }, { status: 500 });
+            }
+        } else {
+            // Soft-delete — mark node inactive, preserve the record
+            const { error: updateError } = await supabase
+                .from('nodes')
+                .update({ status: 'inactive' })
+                .eq('stellar_address', onChainGatewayAddress);
+
+            if (updateError) {
+                console.error('database error:', updateError);
+                return NextResponse.json({ error: updateError.message }, { status: 500 });
+            }
+        }
+
+        return NextResponse.json({ success: true }, { status: 200 });
 
     } catch (error) {
         console.error(error);

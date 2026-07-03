@@ -4,19 +4,47 @@ import { useState, useEffect } from 'react';
 import { Server, CheckCircle2, Loader2, ChevronDown, Info, RefreshCw } from 'lucide-react';
 import { AVAILABLE_REGIONS } from '@/core/constants';
 import type { RegionCode, GatewayNode } from '@/core/types';
+import type { RegistryTxState } from '@/hooks/useGatewayNodes';
+
+// ─── Phase-aware submit label ────────────────────────────
+
+function getSubmitLabel(
+  txState: RegistryTxState | undefined,
+  isReactivationMode: boolean
+): string {
+  if (!txState || txState.status === 'IDLE' || txState.status === 'FAILED') {
+    return isReactivationMode ? 'Re-authorize Gateway Node' : 'Register Node';
+  }
+  switch (txState.status) {
+    case 'VALIDATING_CLIENT':  return 'Validating…';
+     case 'BROADCASTING':
+      return txState.broadcastPhase === 2
+        ? 'Transmitting Core XDR…'
+        : 'Generating Ledger Blueprint…';
+    case 'AWAITING_SIGNATURE': return 'Sign in Wallet…';
+    case 'ON_CHAIN_MINING':    return 'Confirming on Soroban Staging…';
+    case 'SUCCESS':            return 'Clearance Fully Granted';
+    default:
+      return isReactivationMode ? 'Re-authorize Gateway Node' : 'Register Node';
+  }
+}
 
 interface RegisterNodeFormProps {
   onSubmit: (data: { name: string; address: string; region: RegionCode }) => void;
   isSubmitting: boolean;
   isSuccess: boolean;
+  txState?: RegistryTxState;
   revokedNodes?: GatewayNode[];
+  prefillAddress?: string;
 }
 
 export function RegisterNodeForm({
   onSubmit,
   isSubmitting,
   isSuccess,
+  txState,
   revokedNodes = [],
+  prefillAddress,
 }: RegisterNodeFormProps) {
   const [formData, setFormData] = useState<{
     name: string;
@@ -37,6 +65,13 @@ export function RegisterNodeForm({
     if (!formData.region) return;
     onSubmit({ ...formData, region: formData.region });
   };
+
+  // Pre-fill address when parent passes a revoked node address
+  useEffect(() => {
+    if (prefillAddress) {
+      setFormData((p) => ({ ...p, address: prefillAddress }));
+    }
+  }, [prefillAddress]);
 
   // Reset local fields when the success state triggers
   useEffect(() => {
@@ -179,9 +214,7 @@ export function RegisterNodeForm({
             ) : (
               <Server className="w-4 h-4" />
             )}
-            {isSubmitting
-              ? (isReactivationMode ? 'Re-authorizing…' : 'Registering…')
-              : (isReactivationMode ? 'Re-authorize Gateway Node' : 'Register Node')}
+            {getSubmitLabel(txState, isReactivationMode)}
           </button>
         </form>
       )}

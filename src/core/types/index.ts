@@ -14,6 +14,7 @@ export interface WalletState {
   network: 'testnet' | 'mainnet';
   connect: () => void;
   disconnect: () => void;
+  signTransaction: (xdr: string, opts?: { networkPassphrase?: string; address?: string }) => Promise<string>;
 }
 
 /** Wallet summary data displayed on the Command Center hero card */

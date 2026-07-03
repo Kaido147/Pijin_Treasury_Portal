@@ -9,6 +9,7 @@ interface GatewayNodeCardProps {
   isRevoked?: boolean;
   onRevokeClick?: (address: string) => void;
   isRevoking?: boolean;
+  onReauthorize?: (address: string) => void;
 }
 
 export function GatewayNodeCard({
@@ -17,6 +18,7 @@ export function GatewayNodeCard({
   isRevoked = false,
   onRevokeClick,
   isRevoking = false,
+  onReauthorize,
 }: GatewayNodeCardProps) {
   // For revoked cards, always show the 'inactive' config (slate/Revoked badge)
   const cfg = isRevoked
@@ -94,7 +96,18 @@ export function GatewayNodeCard({
       </div>
 
       {/* Action buttons — mutually exclusive based on isRevoked */}
-      {isRevoked ? null : (
+      {isRevoked ? (
+        onReauthorize && (
+          <button
+            id={`reauthorize-node-btn-${node.id}`}
+            type="button"
+            onClick={() => onReauthorize(node.address)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-xs font-semibold px-4 py-2 transition-all"
+          >
+            Re-authorize Node
+          </button>
+        )
+      ) : (
         <>
           {/* Fund Button */}
           <button

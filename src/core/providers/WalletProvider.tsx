@@ -18,6 +18,11 @@ import type { WalletState } from '@/core/types';
 export interface WalletContextValue extends WalletState {
   /** True while connect/disconnect is in-flight */
   isConnecting: boolean;
+  /** Sign a Soroban transaction XDR via the active wallet adapter */
+  signTransaction: (
+    xdr: string,
+    opts?: { networkPassphrase?: string; address?: string }
+  ) => Promise<string>;
 }
 
 export const WalletContext = createContext<WalletContextValue | null>(null);
@@ -110,9 +115,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Stable reference — delegates to active adapter for unified error normalization
+  const signTransaction = useCallback(
+    (xdr: string, opts?: { networkPassphrase?: string; address?: string }) =>
+      stellarKitAdapter.signTransaction(xdr, opts),
+    []
+  );
+
   return (
     <WalletContext.Provider
-      value={{ isConnected, isConnecting, publicKey, balance, network, connect, disconnect }}
+      value={{ isConnected, isConnecting, publicKey, balance, network, connect, disconnect, signTransaction }}
     >
       {children}
     </WalletContext.Provider>

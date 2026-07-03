@@ -4,13 +4,29 @@
 // Manages the list of gateway nodes and the registration flow.
 // Fetches persisted gateway nodes from /api/gateways/register.
 //
-// Uses a strict RegistryTxState machine instead of loose booleans.
+// Client-side wallet signing lifecycle:
+//   VALIDATING_CLIENT
+//   → BROADCASTING (phase 1 — fetch unsigned XDR from API)
+//   → AWAITING_SIGNATURE (Freighter popup)
+//   → BROADCASTING (phase 2 — submit signed envelope to RPC)
+//   → ON_CHAIN_MINING (poll until confirmed)
+//   → PATCH oracle (verify on-chain, sync DB)
+//   → SUCCESS
+//
 // ═══════════════════════════════════════════════════════════
 
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { TransactionBuilder, rpc } from '@stellar/stellar-sdk';
 import type { GatewayNode } from '@/core/types';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+// ─── Client-side RPC constants ──────────────────────────
+const SOROBAN_RPC_URL =
+  process.env.NEXT_PUBLIC_SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org';
+const NETWORK_PASSPHRASE =
+  process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015';
 
 // ─── State Machine Types ────────────────────────────────
 
@@ -34,6 +50,13 @@ export interface RegistryTxState {
   status: RegistryTxStatus;
   failureCode: RegistryFailureCode | null;
   failureMessage: string | null;
+
+  /**
+   * Differentiates the two BROADCASTING phases for UI label differentiation:
+   *   1 — "Generating Ledger Blueprint…" (fetching unsigned XDR from API)
+   *   2 — "Transmitting Core XDR…"       (submitting signed envelope to Soroban RPC)
+   */
+  broadcastPhase?: 1 | 2;
 }
 
 const IDLE_STATE: RegistryTxState = {
@@ -74,10 +97,8 @@ type GatewayRegisterErrorResponse = {
   }>;
 };
 
-type GatewayRegisterSuccessResponse = {
-  success: true;
-  txHash: string;
-  node: GatewayNode;
+type GatewayXdrResponse = {
+  unsignedXdr: string;
 };
 
 const CONTRACT_ERROR_MESSAGES: Record<number, string> = {
@@ -176,6 +197,43 @@ function classifyError(
   };
 }
 
+// ─── Polling Helper ─────────────────────────────────────
+/**
+ * Polls server.getTransaction(hash) every intervalMs until SUCCESS or FAILED.
+ *
+ * Respects an AbortController signal so in-flight polling is cleanly
+ * terminated when the dashboard component unmounts mid-transaction.
+ */
+async function pollUntilConfirmed(
+  server: rpc.Server,
+  hash: string,
+  signal: AbortSignal,
+  maxMs = 60000,
+  intervalMs = 2000,
+): Promise<rpc.Api.GetSuccessfulTransactionResponse> {
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    if (signal.aborted) throw new DOMException('Polling aborted', 'AbortError');
+    const result = await server.getTransaction(hash);
+    if (result.status === rpc.Api.GetTransactionStatus.SUCCESS) {
+      return result as rpc.Api.GetSuccessfulTransactionResponse;
+    }
+    if (result.status === rpc.Api.GetTransactionStatus.FAILED) {
+      throw new Error('Transaction failed on-chain during confirmation polling.');
+    }
+    // NOT_FOUND — still pending. Wait intervalMs with abort awareness.
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(resolve, intervalMs);
+      signal.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(new DOMException('Polling aborted', 'AbortError'));
+      }, { once: true });
+    });
+  }
+  throw new Error('Transaction confirmation timed out after 60 seconds.');
+}
+
+
 // ─── Hook ───────────────────────────────────────────────
 
 export function useGatewayNodes(): UseGatewayNodesReturn {
@@ -184,8 +242,14 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [txState, setTxState] = useState<RegistryTxState>(IDLE_STATE);
 
-  // Stable ref so addNode can call fetchNodes without a stale closure
+    // Stable ref so addNode/removeNode can call fetchNodes without stale closure
   const isMountedRef = useRef(true);
+
+   // AbortController for in-flight polling — killed on unmount
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Pull wallet public key + adapter-level signTransaction from context
+  const { publicKey, signTransaction } = useStellarWallet();
 
   const fetchNodes = useCallback(async (initialLoad: boolean = false) => {
     try {
@@ -212,7 +276,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
     }
   }, []);
 
-  // Fetch nodes on mount and poll every 30 s
+ // Mount: fetch nodes + start 30 s poll. Unmount: abort any in-flight signing poll.
   useEffect(() => {
     isMountedRef.current = true;
     fetchNodes(true);
@@ -222,31 +286,54 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
     return () => {
       isMountedRef.current = false;
       clearInterval(interval);
+      abortControllerRef.current?.abort();
     };
   }, [fetchNodes]);
 
-  // addNode function to register the gateway stellar address
+  // ─── addNode ──────────────────────────────────────────
+
   const addNode = useCallback(
     async (data: { name: string; address: string; region: string }): Promise<RegistryTxState | void> => {
-      setTxState({ status: 'VALIDATING_CLIENT', failureCode: null, failureMessage: null });
-
-      // Client-side duplicate check → STATE_COLLISION
-      if (nodes.find((node) => node.address === data.address)) {
-        const failState: RegistryTxState = {
-          status: 'FAILED',
-          failureCode: 'STATE_COLLISION',
-          failureMessage: 'This gateway address is already registered locally. Each address can only be whitelisted once.',
-        };
-        setTxState(failState);
-        return failState;
-      }
-
-      setTxState({ status: 'BROADCASTING', failureCode: null, failureMessage: null });
-
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+      
       try {
+        // ── VALIDATING_CLIENT ──
+        setTxState({ status: 'VALIDATING_CLIENT', failureCode: null, failureMessage: null });
+
+         if (!publicKey) {
+          const failState: RegistryTxState = {
+            status: 'FAILED',
+            failureCode: 'AUTH_FAILED',
+            failureMessage: 'No wallet connected. Please connect your Freighter wallet first.',
+          };
+          setTxState(failState);
+          return failState;
+        }
+
+        // Client-side duplicate check — only flag if an *active* node occupies this address.
+        // 'inactive' nodes are the re-authorization target and must not be blocked here.
+        if (nodes.find((node) => node.address === data.address && node.status !== 'inactive')) {
+          const failState: RegistryTxState = {
+            status: 'FAILED',
+            failureCode: 'STATE_COLLISION',
+            failureMessage: 'This gateway address is already registered locally. Each address can only be whitelisted once.',
+          };
+          setTxState(failState);
+          return failState;
+        }
+        // ── BROADCASTING — Phase 1: Fetch unsigned XDR from API ──
+        setTxState({
+          status: 'BROADCASTING',
+          failureCode: null,
+          failureMessage: null,
+          broadcastPhase: 1,
+        });
+
+
         const res = await fetch('/api/gateways/register', {
           method: 'POST',
-          body: JSON.stringify(data),
+          body: JSON.stringify({ ...data, walletPublicKey: publicKey }),
           headers: { 'Content-Type': 'application/json' },
         });
 
@@ -262,40 +349,118 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
           return failState;
         }
 
-        // Parse receipt to confirm success; node data comes from re-fetch, not this payload.
-        const _receipt: GatewayRegisterSuccessResponse = await res.json();
+        const { unsignedXdr }: GatewayXdrResponse = await res.json();
 
-        // Re-fetch from server — guarantees nodes state holds canonical DB rows, not receipt shape.
+         // ── AWAITING_SIGNATURE: Freighter popup ──
+        setTxState({ status: 'AWAITING_SIGNATURE', failureCode: null, failureMessage: null });
+        let signedXdr: string;
+        try {
+          signedXdr = await signTransaction(unsignedXdr, {
+            networkPassphrase: NETWORK_PASSPHRASE,
+            address: publicKey,
+          });
+        } catch {
+          // User rejected or wallet error — graceful failure
+          const failState: RegistryTxState = {
+            status: 'FAILED',
+            failureCode: 'AUTH_FAILED',
+            failureMessage: 'Transaction signing was rejected in your wallet.',
+          };
+          setTxState(failState);
+          return failState;
+        }
+        // ── BROADCASTING — Phase 2: Submit signed envelope to Soroban RPC ──
+        setTxState({
+          status: 'BROADCASTING',
+          failureCode: null,
+          failureMessage: null,
+          broadcastPhase: 2,
+        });
+        const server = new rpc.Server(SOROBAN_RPC_URL);
+        // sendTransaction accepts base64 XDR string directly
+        const submitResult = await server.sendTransaction(
+          TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE)
+        );
+        if (submitResult.status === 'ERROR') {
+          const failState: RegistryTxState = {
+            status: 'FAILED',
+            failureCode: 'UNKNOWN',
+            failureMessage: 'Transaction was rejected by the Soroban network.',
+          };
+          setTxState(failState);
+          return failState;
+        }
+        // ── ON_CHAIN_MINING: Poll until confirmed ──
+        setTxState({ status: 'ON_CHAIN_MINING', failureCode: null, failureMessage: null });
+        await pollUntilConfirmed(server, submitResult.hash, abortController.signal);
+        // ── PATCH verification oracle: verify on-chain, then sync DB ──
+        await fetch('/api/gateways/register', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            txHash: submitResult.hash,
+            action: 'register',
+            name: data.name,
+            region: data.region,
+          }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+        // ── SUCCESS ──
+
         await fetchNodes(false);
-
         setTxState({ status: 'SUCCESS', failureCode: null, failureMessage: null });
 
         setTimeout(() => {
-          setTxState(IDLE_STATE);
+          if (isMountedRef.current) setTxState(IDLE_STATE);
         }, 2000);
 
-      } catch (err: any) {
+        } catch (err: unknown) {
+        // Silently bail if component unmounted mid-poll
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+
         const failState: RegistryTxState = {
           status: 'FAILED',
           failureCode: 'UNKNOWN',
-          failureMessage: err.message || 'An unexpected error occurred',
+          failureMessage: err instanceof Error ? err.message : 'An unexpected error occurred',
         };
-        setTxState(failState);
+        if (isMountedRef.current) setTxState(failState);
         return failState;
       }
     },
-    [nodes, fetchNodes]
+    [nodes, fetchNodes, publicKey, signTransaction]
   );
 
-  // removeNode function to de-whitelist a gateway node on-chain
+    // ─── removeNode ─────────────────────────────────────────
+
   const removeNode = useCallback(
     async (address: string): Promise<RegistryTxState | void> => {
-      setTxState({ status: 'BROADCASTING', failureCode: null, failureMessage: null });
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
 
       try {
+
+         // ── VALIDATING_CLIENT ──
+        setTxState({ status: 'VALIDATING_CLIENT', failureCode: null, failureMessage: null });
+        if (!publicKey) {
+          const failState: RegistryTxState = {
+            status: 'FAILED',
+            failureCode: 'AUTH_FAILED',
+            failureMessage: 'No wallet connected. Please connect your Freighter wallet first.',
+          };
+          setTxState(failState);
+          return failState;
+        }
+        // ── BROADCASTING — Phase 1: Fetch unsigned XDR ──
+        setTxState({
+          status: 'BROADCASTING',
+          failureCode: null,
+          failureMessage: null,
+          broadcastPhase: 1,
+        });
+
+        
         const res = await fetch('/api/gateways/register', {
           method: 'DELETE',
-          body: JSON.stringify({ address }),
+          body: JSON.stringify({ address, walletPublicKey: publicKey }),
           headers: { 'Content-Type': 'application/json' },
         });
 
@@ -311,26 +476,79 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
           return failState;
         }
 
-        // Resync from server — guarantees canonical DB state
+         const { unsignedXdr }: GatewayXdrResponse = await res.json();
+        // ── AWAITING_SIGNATURE ──
+        setTxState({ status: 'AWAITING_SIGNATURE', failureCode: null, failureMessage: null });
+        let signedXdr: string;
+        try {
+          signedXdr = await signTransaction(unsignedXdr, {
+            networkPassphrase: NETWORK_PASSPHRASE,
+            address: publicKey,
+          });
+        } catch {
+          const failState: RegistryTxState = {
+            status: 'FAILED',
+            failureCode: 'AUTH_FAILED',
+            failureMessage: 'Transaction signing was rejected in your wallet.',
+          };
+          setTxState(failState);
+          return failState;
+        }
+        // ── BROADCASTING — Phase 2: Submit signed envelope ──
+        setTxState({
+          status: 'BROADCASTING',
+          failureCode: null,
+          failureMessage: null,
+          broadcastPhase: 2,
+        });
+        const server = new rpc.Server(SOROBAN_RPC_URL);
+        const submitResult = await server.sendTransaction(
+          TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE)
+        );
+        if (submitResult.status === 'ERROR') {
+          const failState: RegistryTxState = {
+            status: 'FAILED',
+            failureCode: 'UNKNOWN',
+            failureMessage: 'Transaction was rejected by the Soroban network.',
+          };
+          setTxState(failState);
+          return failState;
+        }
+        // ── ON_CHAIN_MINING ──
+        setTxState({ status: 'ON_CHAIN_MINING', failureCode: null, failureMessage: null });
+        await pollUntilConfirmed(server, submitResult.hash, abortController.signal);
+        // ── PATCH oracle: verify on-chain, sync DB to inactive ──
+        await fetch('/api/gateways/register', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            txHash: submitResult.hash,
+            action: 'remove',
+          }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+        // ── SUCCESS ──
+
         await fetchNodes(false);
 
         setTxState({ status: 'SUCCESS', failureCode: null, failureMessage: null });
 
         setTimeout(() => {
-          setTxState(IDLE_STATE);
+           if (isMountedRef.current) setTxState(IDLE_STATE);
         }, 2000);
 
-      } catch (err: any) {
+        } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+
         const failState: RegistryTxState = {
           status: 'FAILED',
           failureCode: 'UNKNOWN',
-          failureMessage: err.message || 'An unexpected error occurred',
+          failureMessage: err instanceof Error ? err.message : 'An unexpected error occurred',
         };
-        setTxState(failState);
+        if (isMountedRef.current) setTxState(failState);
         return failState;
       }
     },
-    [fetchNodes]
+    [fetchNodes, publicKey, signTransaction]
   );
 
   const resetForm = useCallback(() => {
@@ -338,7 +556,11 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
   }, []);
 
   // Derived booleans — backward compatibility for RegisterNodeForm
-  const isSubmitting = txState.status === 'VALIDATING_CLIENT' || txState.status === 'BROADCASTING' || txState.status === 'ON_CHAIN_MINING';
+   const isSubmitting =
+    txState.status === 'VALIDATING_CLIENT' ||
+    txState.status === 'AWAITING_SIGNATURE' ||
+    txState.status === 'BROADCASTING' ||
+    txState.status === 'ON_CHAIN_MINING';
   const isSuccess = txState.status === 'SUCCESS';
   const submitError = txState.failureMessage;
 

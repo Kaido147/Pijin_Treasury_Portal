@@ -47,14 +47,18 @@ export default function GatewayOpsPage() {
 
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('ACTIVE');
+  const [prefillAddress, setPrefillAddress] = useState<string | undefined>(undefined);
 
   // Fund-node modal state
   const [fundDialogOpen, setFundDiaglogOpen] = useState<boolean>(false);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const { formState, txHash, submitTransfer, resetTransfer } = useTransfer();
 
-  // Whether ANY revoke TX is in-flight
-  const isRevoking = txState.status === 'BROADCASTING';
+  // Whether ANY revoke TX is in-flight (covers all active states)
+  const isRevoking =
+    txState.status === 'BROADCASTING' ||
+    txState.status === 'AWAITING_SIGNATURE' ||
+    txState.status === 'ON_CHAIN_MINING';
 
   // Event-driven: capture addNode return; fire toast immediately on failure
   const handleRegistration = async (data: { name: string; address: string; region: string }) => {
@@ -83,6 +87,11 @@ export default function GatewayOpsPage() {
   const handleFundClick = (address: string): void => {
     setSelectedAddress(address);
     setFundDiaglogOpen(true);
+  };
+
+  const handleReauthorize = (address: string): void => {
+    setPrefillAddress(address);
+    setShowRegisterForm(true);
   };
 
   const handleDialogClose = (open: boolean): void => {
@@ -138,7 +147,9 @@ export default function GatewayOpsPage() {
           onSubmit={handleRegistration}
           isSubmitting={isSubmitting}
           isSuccess={isSuccess}
+          txState={txState}
           revokedNodes={revokedNodes}
+          prefillAddress={prefillAddress}
         />
       )}
 
@@ -203,6 +214,7 @@ export default function GatewayOpsPage() {
               isRevoked={activeTab === 'REVOKED'}
               onRevokeClick={activeTab === 'ACTIVE' ? handleRevoke : undefined}
               isRevoking={isRevoking}
+              onReauthorize={activeTab === 'REVOKED' ? handleReauthorize : undefined}
             />
           ))
         )}
