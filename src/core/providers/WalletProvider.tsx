@@ -18,6 +18,11 @@ import type { WalletState } from '@/core/types';
 export interface WalletContextValue extends WalletState {
   /** True while connect/disconnect is in-flight */
   isConnecting: boolean;
+  /** Sign a Soroban transaction XDR via the active wallet adapter */
+  signTransaction: (
+    xdr: string,
+    opts?: { networkPassphrase?: string; address?: string }
+  ) => Promise<string>;
 }
 
 export const WalletContext = createContext<WalletContextValue | null>(null);
@@ -84,28 +89,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setBalance(result.balance);
       setNetwork('testnet');
       setIsConnected(true);
-    } catch (err: any) {
-      // Catch the declined signing error message
-      const rawError = err?.message || err?.toString() || '';
-      const lowerError = rawError.toLowerCase();
-
-      const isRejected = lowerError.includes('reject') ||
-        lowerError.includes('decline') ||
-        lowerError.includes('cancel');
-
-      let finalMessage = 'Wallet Connection Failed';
-
-      if (isRejected) {
-        finalMessage = 'Action canceled by user.';
-      } else if (err instanceof Error) {
-        finalMessage = err.message;
-      } else if (typeof err === 'string' && err.trim() !== '') {
-        finalMessage = err;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Wallet connection failed.';
+      if (message === 'WALLET_SIGN_REJECTED') {
+        toast.error('Signature request cancelled. Connect wallet to try again.');
+      } else {
+        toast.error(message);
       }
-
-      toast.error(finalMessage);
-      setPublicKey(null);
-      setIsConnected(false);
     } finally {
       setIsConnecting(false);
     }
@@ -125,9 +115,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Stable reference — delegates to active adapter for unified error normalization
+  const signTransaction = useCallback(
+    (xdr: string, opts?: { networkPassphrase?: string; address?: string }) =>
+      stellarKitAdapter.signTransaction(xdr, opts),
+    []
+  );
+
   return (
     <WalletContext.Provider
-      value={{ isConnected, isConnecting, publicKey, balance, network, connect, disconnect }}
+      value={{ isConnected, isConnecting, publicKey, balance, network, connect, disconnect, signTransaction }}
     >
       {children}
     </WalletContext.Provider>

@@ -22,12 +22,14 @@ export function Sidebar({ isOpen }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 h-full flex flex-col z-40 transition-all duration-300 bg-navy-900 overflow-hidden',
-        isOpen ? 'w-60' : 'w-0',
+        // Always w-60, always fixed — open/close via transform, not width
+        'fixed left-0 top-0 h-full w-60 flex flex-col z-40 bg-navy-900',
+        'transition-transform duration-300',
+        isOpen ? 'translate-x-0' : '-translate-x-full',
       )}
     >
       {/* Logo */}
-      <div className="flex items-center gap-3 px-6 py-5 border-b border-white/[0.07] min-w-60">
+      <div className="flex items-center gap-3 px-6 py-5 border-b border-white/[0.07]">
         <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-white/[0.12]">
           <span className="text-white font-extrabold text-base">P</span>
         </div>
@@ -42,7 +44,7 @@ export function Sidebar({ isOpen }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1 min-w-60">
+      <nav className="flex-1 px-3 py-4 space-y-1">
         <div className="text-white/25 text-[0.65rem] font-bold tracking-widest px-3 pb-2 uppercase">
           Navigation
         </div>
@@ -85,7 +87,7 @@ export function Sidebar({ isOpen }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="px-3 py-4 border-t border-white/[0.07] min-w-60">
+      <div className="px-3 py-4 border-t border-white/[0.07]">
         <button
           id="disconnect-wallet-btn"
           onClick={async () => {

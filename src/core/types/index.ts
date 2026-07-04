@@ -14,6 +14,7 @@ export interface WalletState {
   network: 'testnet' | 'mainnet';
   connect: () => void;
   disconnect: () => void;
+  signTransaction: (xdr: string, opts?: { networkPassphrase?: string; address?: string }) => Promise<string>;
 }
 
 /** Wallet summary data displayed on the Command Center hero card */
@@ -28,9 +29,16 @@ export interface WalletInfo {
 
 // ─── Gateway ────────────────────────────────────────────
 
-export type RegionCode = 'SEA-01' | 'SEA-02' | 'SEA-03' | 'SEA-04' | 'SEA-05';
+export type RegionCode = string;
 
-export type NodeStatus = 'active' | 'syncing' | 'offline';
+/** A region row from the `regions` Supabase table */
+export interface Region {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+export type NodeStatus = 'active' | 'syncing' | 'offline' | 'inactive';
 
 export interface GatewayNode {
   id: string;

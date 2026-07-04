@@ -14,12 +14,12 @@ export function Topbar({ isSidebarOpen, onToggleSidebar }: TopbarProps) {
     useStellarWallet();
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between px-6 py-3 bg-surface/85 backdrop-blur-md border-b border-border-default">
+    <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-2 lg:px-6 lg:py-3 bg-surface/85 backdrop-blur-md border-b border-border-default">
       {/* Sidebar toggle */}
       <button
         id="sidebar-toggle-btn"
         onClick={onToggleSidebar}
-        className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors bg-transparent hover:bg-surface-raised"
+        className="w-11 h-11 lg:w-9 lg:h-9 flex items-center justify-center rounded-xl transition-colors bg-transparent hover:bg-surface-raised"
       >
         {isSidebarOpen ? (
           <X className="w-4 h-4 text-slate-500" />

@@ -25,7 +25,6 @@ import type {
   StatusConfig,
   ServiceStatus,
   ServiceStatusConfig,
-  RegionCode,
 } from '@/core/types';
 
 // ─── Navigation ─────────────────────────────────────────
@@ -43,6 +42,7 @@ export const NODE_STATUS_CONFIG: Record<NodeStatus, StatusConfig> = {
   active: { label: 'Active', textClass: 'text-green-600', bgClass: 'bg-green-100', icon: Wifi },
   syncing: { label: 'Syncing', textClass: 'text-amber-600', bgClass: 'bg-amber-100', icon: Loader2 },
   offline: { label: 'Offline', textClass: 'text-red-600', bgClass: 'bg-red-100', icon: WifiOff },
+  inactive: { label: 'Revoked', textClass: 'text-slate-500', bgClass: 'bg-slate-200', icon: WifiOff },
 };
 
 // ─── Transaction Status ─────────────────────────────────
@@ -89,15 +89,6 @@ export const STAT_ICON_MAP: Record<string, ElementType> = {
   'trending-up': TrendingUp,
 };
 
-// ─── Available Regions ──────────────────────────────────
-
-export const AVAILABLE_REGIONS: readonly { value: RegionCode; label: string }[] = [
-  { value: 'SEA-01', label: 'Manila (SEA-01)' },
-  { value: 'SEA-02', label: 'Jakarta (SEA-02)' },
-  { value: 'SEA-03', label: 'Cebu (SEA-03)' },
-  { value: 'SEA-04', label: 'Singapore (SEA-04)' },
-  { value: 'SEA-05', label: 'Palawan (SEA-05)' },
-] as const;
 
 // ─── Stellar Network ───────────────────────────────────
 
