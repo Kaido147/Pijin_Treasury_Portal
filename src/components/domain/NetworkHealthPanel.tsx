@@ -21,7 +21,7 @@ export function NetworkHealthPanel({ services }: NetworkHealthPanelProps) {
             return (
               <div key={service.name} className="flex items-center gap-4">
                 {/* Service name with dot */}
-                <div className="flex items-center gap-2 w-44">
+                <div className="flex items-center gap-2 w-28 lg:w-44 shrink-0">
                   <div
                     className={cn(
                       'w-2 h-2 rounded-full shrink-0',
