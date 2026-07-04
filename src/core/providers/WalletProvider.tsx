@@ -109,7 +109,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setBalance(0);
       setIsConnected(false);
       localStorage.removeItem('admin_session');
-      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => { }); // Automatically signs out when the sign message is decline
     } finally {
       setIsConnecting(false);
     }

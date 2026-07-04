@@ -89,6 +89,7 @@ export interface UseGatewayNodesReturn {
 // ─── Error Classification ───────────────────────────────
 
 type GatewayRegisterErrorResponse = {
+  type?: string;
   error?: string;
   details?: string;
   code?: string;

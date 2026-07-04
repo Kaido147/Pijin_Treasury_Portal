@@ -200,11 +200,21 @@ export async function POST(request: Request) {
             const events = formatSimulationEvents(simulation.events);
             console.error('Simulation Error:', simulation.error);
             console.error('Simulation Events:', inspect(events, { depth: null, colors: false }));
+
+            // Determine error type based on the simulation error message
+            let errorType = 'simulation_failed';
+            const errorMessage = simulation.error?.toLowerCase() || '';
+            
+            if (errorMessage.includes('gas') || errorMessage.includes('limit') || errorMessage.includes('budget') || errorMessage.includes('resource')) {
+                errorType = 'out_of_gas';
+            }
+
             return NextResponse.json({
+                type: errorType,
                 error: 'Contract simulation failed',
                 details: simulation.error || 'Unknown simulation error',
                 events
-            }, { status: 400 });
+            }, { status: 422 });
         }
 
         // Assemble with real fees — do NOT sign server-side
