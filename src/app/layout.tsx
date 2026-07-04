@@ -1,7 +1,19 @@
 import type { Metadata } from "next";
+import { Nunito, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
-import { WalletProvider } from "@/core/providers/WalletProvider";
 import "./globals.css";
+
+const nunito = Nunito({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Pijin Treasury Portal",
@@ -15,11 +27,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={`${nunito.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <body className="antialiased">
-        <WalletProvider>
-          {children}
-        </WalletProvider>
+        {children}
         <Toaster />
       </body>
     </html>
