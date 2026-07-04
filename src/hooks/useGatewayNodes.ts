@@ -277,12 +277,15 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
     }
   }, []);
 
- // Mount: fetch nodes + start 30 s poll. Unmount: abort any in-flight signing poll.
+  // Mount: fetch nodes + start 30 s poll. Unmount: abort any in-flight signing poll.
   useEffect(() => {
     isMountedRef.current = true;
     fetchNodes(true);
 
-    const interval = setInterval(() => fetchNodes(false), 30000);
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      fetchNodes(false);
+    }, 30000);
 
     return () => {
       isMountedRef.current = false;
