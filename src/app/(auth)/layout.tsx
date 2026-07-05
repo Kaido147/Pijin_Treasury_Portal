@@ -1,4 +1,6 @@
+import React from "react";
 import type { Metadata } from "next";
+import Image from "next/image";
 
 export const metadata: Metadata = {
   title: "Sign In | Pijin Treasury Portal",
@@ -23,10 +25,13 @@ export default function AuthLayout({
         </div>
 
         {/* Illustration — full bleed */}
-        <img
-          src="/images/login-illustration.png"
+        <Image
+          src="/images/login-illustration.webp"
           alt="Pijin isometric city illustration"
-          className="h-full w-full object-cover"
+          fill
+          priority
+          sizes="60vw"
+          className="object-cover"
         />
       </section>
 

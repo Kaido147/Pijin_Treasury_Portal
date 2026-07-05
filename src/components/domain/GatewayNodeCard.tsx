@@ -79,9 +79,9 @@ export function GatewayNodeCard({
 
       {/* Balance (active only) */}
       {!isRevoked && (
-        <div className="text-right shrink-0 hidden lg:block">
-          <div className="text-slate-500 text-[0.7rem]">Balance</div>
-          <div className="font-mono font-semibold text-sm text-navy-900">
+        <div className="text-right shrink-0">
+          <div className="text-slate-500 text-[0.7rem] hidden lg:block">Balance</div>
+          <div className="font-mono font-semibold text-xs lg:text-sm text-navy-900">
             {node.balance} XLM
           </div>
         </div>

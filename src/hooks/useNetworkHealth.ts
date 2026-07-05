@@ -64,6 +64,7 @@ export function useNetworkHealth(): UseNetworkHealthReturn {
   // actual data re-fetches.
   useEffect(() => {
     const intervalId = setInterval(() => {
+      if (document.hidden) return;
       setLastUpdated(new Date());
     }, DASHBOARD_REFRESH_INTERVAL_MS);
 

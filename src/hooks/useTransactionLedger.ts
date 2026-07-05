@@ -76,6 +76,7 @@ export function useTransactionLedger(): UseTransactionLedgerReturn {
     if (!isLive) return;
 
     const intervalId = setInterval(() => {
+      if (document.hidden) return;
       setTransactions((prev) =>
         [generateMockTransaction(0), ...prev].slice(
           0,

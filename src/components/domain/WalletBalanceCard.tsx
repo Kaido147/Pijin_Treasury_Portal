@@ -16,7 +16,7 @@ export function WalletBalanceCard({
       <div className="absolute -top-12 -right-12 w-56 h-56 rounded-full opacity-10 bg-[radial-gradient(circle,#93c5fd,transparent)]" />
       <div className="absolute bottom-0 -left-8 w-40 h-40 rounded-full opacity-10 bg-[radial-gradient(circle,#60a5fa,transparent)]" />
 
-      <div className="relative px-8 pt-8 pb-6">
+      <div className="relative px-5 py-6 lg:px-8 lg:pt-8 lg:pb-6">
         {/* Header */}
         <div className="flex items-start justify-between mb-8">
           <div>
@@ -46,7 +46,7 @@ export function WalletBalanceCard({
         </div>
 
         {/* Stats footer */}
-        <div className="pt-4 flex items-center justify-between border-t border-white/10">
+        <div className="pt-4 grid grid-cols-3 gap-2 text-center lg:flex lg:items-center lg:justify-between lg:text-left border-t border-white/10">
           <div>
             <div className="text-white/35 text-[0.68rem]">24h Change</div>
             <div className="text-green-400 font-mono text-[0.9rem] font-medium">
