@@ -11,12 +11,9 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Transaction, TxStatus } from '@/core/types';
+import { fetchRecentTransactions, subscribeToTransactions } from '@/infrastructure/stellar/horizon';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
 import {
-  generateMockTransaction,
-  generateInitialTransactions,
-} from '@/infrastructure/api/mockData';
-import {
-  LEDGER_POLL_INTERVAL_MS,
   LEDGER_MAX_TRANSACTIONS,
   LEDGER_INITIAL_COUNT,
 } from '@/core/constants';
@@ -63,29 +60,58 @@ export interface UseTransactionLedgerReturn {
  * - No component changes required
  */
 export function useTransactionLedger(): UseTransactionLedgerReturn {
-  const [transactions, setTransactions] = useState<Transaction[]>(() =>
-    generateInitialTransactions(LEDGER_INITIAL_COUNT),
-  );
+  const { publicKey } = useStellarWallet();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLive, setIsLive] = useState(true);
   const [filter, setFilter] = useState<LedgerFilter>('all');
+  const [isLoading, setIsLoading] = useState(false);
 
-  // ─── Live Polling ───────────────────────────────────────
-  // When live mode is on, prepend a new transaction every 5s
-  // and cap the list at LEDGER_MAX_TRANSACTIONS.
+  // ─── Initial Load ────────────────────────────────────────
   useEffect(() => {
-    if (!isLive) return;
+    if (!publicKey) {
+      setTransactions([]);
+      return;
+    }
 
-    const intervalId = setInterval(() => {
-      setTransactions((prev) =>
-        [generateMockTransaction(0), ...prev].slice(
-          0,
-          LEDGER_MAX_TRANSACTIONS,
-        ),
-      );
-    }, LEDGER_POLL_INTERVAL_MS);
+    let isMounted = true;
+    setIsLoading(true);
+    fetchRecentTransactions(publicKey, LEDGER_INITIAL_COUNT).then((txs) => {
+      if (isMounted) {
+        setTransactions(txs);
+        setIsLoading(false);
+      }
+    });
 
-    return () => clearInterval(intervalId);
-  }, [isLive]);
+    return () => {
+      isMounted = false;
+    };
+  }, [publicKey]);
+
+  // ─── Live Polling (SSE Stream) ───────────────────────────
+  useEffect(() => {
+    if (!isLive || !publicKey) return;
+
+    const unsubscribe = subscribeToTransactions(
+      publicKey,
+      (newTx) => {
+        setTransactions((prev) => {
+          // Prevent duplicates by hash
+          if (prev.some((tx) => tx.hash === newTx.hash)) {
+            return prev;
+          }
+          return [newTx, ...prev].slice(0, LEDGER_MAX_TRANSACTIONS);
+        });
+      },
+      (err) => {
+        // Handle error if needed (maybe toast)
+        console.error('Ledger stream error:', err);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [isLive, publicKey]);
 
   // ─── Filtering ──────────────────────────────────────────
   const filteredTransactions = useMemo(() => {
