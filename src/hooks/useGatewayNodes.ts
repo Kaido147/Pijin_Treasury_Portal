@@ -134,18 +134,6 @@ function getContractErrorCode(errorData: GatewayRegisterErrorResponse): number |
   return null;
 }
 
-<<<<<<< HEAD
-function formatRegisterError(errorData: GatewayRegisterErrorResponse): string {
-  if (errorData.type === 'out_of_gas') {
-    return 'Simulation failed: Out of gas or exceeded resource limits.';
-  }
-
-  const code = getContractErrorCode(errorData);
-
-  if (code !== null) {
-    const message = CONTRACT_ERROR_MESSAGES[code] ?? 'Unknown contract error';
-    return `Contract rejected register_gateway with error #${code}: ${message}`;
-=======
 /**
  * Classifies a backend error response into a typed failure code + message.
  * Checks server-provided `code` field first, then falls back to string matching.
@@ -160,7 +148,6 @@ function classifyError(
       failureCode: 'RELAYER_UNFUNDED',
       failureMessage: 'The relayer gas account is unfunded. Contact the system administrator to top up the treasury XLM pool.',
     };
->>>>>>> 2a7fb8418800ae4c96af21fd4cdd31529137dcc3
   }
 
   // ── Resource exhaustion (Soroban budget) ──
@@ -256,10 +243,10 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [txState, setTxState] = useState<RegistryTxState>(IDLE_STATE);
 
-    // Stable ref so addNode/removeNode can call fetchNodes without stale closure
+  // Stable ref so addNode/removeNode can call fetchNodes without stale closure
   const isMountedRef = useRef(true);
 
-   // AbortController for in-flight polling — killed on unmount
+  // AbortController for in-flight polling — killed on unmount
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Pull wallet public key + adapter-level signTransaction from context
@@ -313,12 +300,12 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
     async (data: { name: string; address: string; region: string }): Promise<RegistryTxState | void> => {
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
-      
+
       try {
         // ── VALIDATING_CLIENT ──
         setTxState({ status: 'VALIDATING_CLIENT', failureCode: null, failureMessage: null });
 
-         if (!publicKey) {
+        if (!publicKey) {
           const failState: RegistryTxState = {
             status: 'FAILED',
             failureCode: 'AUTH_FAILED',
@@ -368,7 +355,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
 
         const { unsignedXdr }: GatewayXdrResponse = await res.json();
 
-         // ── AWAITING_SIGNATURE: Freighter popup ──
+        // ── AWAITING_SIGNATURE: Freighter popup ──
         setTxState({ status: 'AWAITING_SIGNATURE', failureCode: null, failureMessage: null });
         let signedXdr: string;
         try {
@@ -430,7 +417,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
           if (isMountedRef.current) setTxState(IDLE_STATE);
         }, 2000);
 
-        } catch (err: unknown) {
+      } catch (err: unknown) {
         // Silently bail if component unmounted mid-poll
         if (err instanceof DOMException && err.name === 'AbortError') return;
 
@@ -446,7 +433,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
     [nodes, fetchNodes, publicKey, signTransaction]
   );
 
-    // ─── removeNode ─────────────────────────────────────────
+  // ─── removeNode ─────────────────────────────────────────
 
   const removeNode = useCallback(
     async (address: string): Promise<RegistryTxState | void> => {
@@ -455,7 +442,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
 
       try {
 
-         // ── VALIDATING_CLIENT ──
+        // ── VALIDATING_CLIENT ──
         setTxState({ status: 'VALIDATING_CLIENT', failureCode: null, failureMessage: null });
         if (!publicKey) {
           const failState: RegistryTxState = {
@@ -474,7 +461,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
           broadcastPhase: 1,
         });
 
-        
+
         const res = await fetch('/api/gateways/register', {
           method: 'DELETE',
           body: JSON.stringify({ address, walletPublicKey: publicKey }),
@@ -493,7 +480,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
           return failState;
         }
 
-         const { unsignedXdr }: GatewayXdrResponse = await res.json();
+        const { unsignedXdr }: GatewayXdrResponse = await res.json();
         // ── AWAITING_SIGNATURE ──
         setTxState({ status: 'AWAITING_SIGNATURE', failureCode: null, failureMessage: null });
         let signedXdr: string;
@@ -550,10 +537,10 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
         setTxState({ status: 'SUCCESS', failureCode: null, failureMessage: null });
 
         setTimeout(() => {
-           if (isMountedRef.current) setTxState(IDLE_STATE);
+          if (isMountedRef.current) setTxState(IDLE_STATE);
         }, 2000);
 
-        } catch (err: unknown) {
+      } catch (err: unknown) {
         if (err instanceof DOMException && err.name === 'AbortError') return;
 
         const failState: RegistryTxState = {
@@ -573,7 +560,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
   }, []);
 
   // Derived booleans — backward compatibility for RegisterNodeForm
-   const isSubmitting =
+  const isSubmitting =
     txState.status === 'VALIDATING_CLIENT' ||
     txState.status === 'AWAITING_SIGNATURE' ||
     txState.status === 'BROADCASTING' ||

@@ -204,7 +204,7 @@ export async function POST(request: Request) {
             // Determine error type based on the simulation error message
             let errorType = 'simulation_failed';
             const errorMessage = simulation.error?.toLowerCase() || '';
-            
+
             if (errorMessage.includes('gas') || errorMessage.includes('limit') || errorMessage.includes('budget') || errorMessage.includes('resource')) {
                 errorType = 'out_of_gas';
             }
@@ -220,40 +220,6 @@ export async function POST(request: Request) {
         // Assemble with real fees — do NOT sign server-side
         const assembled = rpc.assembleTransaction(tx, simulation).build();
 
-<<<<<<< HEAD
-        // Submit to the Stellar network
-        const txResponse = await server.sendTransaction(tx);
-
-        if (txResponse.status === 'ERROR') {
-            return NextResponse.json({ error: 'Transaction rejected by network' }, { status: 500 });
-        }
-
-        // Only runs if the blockchain transaction was successfully sent
-        const { data: newNode, error: nodeError } = await supabase
-            .from('nodes')
-            .insert({
-                name: data.name,
-                stellar_address: data.address, // the gateway stellar address
-                region: data.region,
-                registered_by: admin.id, // uses the verified UUID from step 2
-                status: 'active'
-            })
-            .select()
-            .single();
-
-        // Handle duplicate entries (nodes)
-        if (nodeError?.code === '23505') {
-            return NextResponse.json({ error: 'Gateway already registered.' }, { status: 409 });
-        }
-
-        if (nodeError) {
-            console.error('database error:', nodeError);
-            return NextResponse.json({ error: nodeError.message }, { status: 500 });
-        }
-
-        // Return success to the frontend
-=======
->>>>>>> 2a7fb8418800ae4c96af21fd4cdd31529137dcc3
         return NextResponse.json({
             unsignedXdr: assembled.toEnvelope().toXDR('base64'),
         }, { status: 200 });
