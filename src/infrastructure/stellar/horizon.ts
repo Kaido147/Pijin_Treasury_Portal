@@ -25,7 +25,9 @@ async function mapHorizonTxToDomain(rawTx: any, accountId: string): Promise<Tran
 
   try {
     // Fetch operations to find the actual amount/to/from
-    const opsRes = await fetch(`${rawTx._links.operations.href}`);
+    // Horizon returns templated URIs (RFC 6570), e.g., .../operations{?cursor,limit,order}
+    const opsUrl = rawTx._links.operations.href.split('{')[0];
+    const opsRes = await fetch(opsUrl);
     if (opsRes.ok) {
       const opsData = await opsRes.json();
       const records = opsData._embedded?.records || [];
