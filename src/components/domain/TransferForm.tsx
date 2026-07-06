@@ -159,7 +159,7 @@ export function TransferForm({
                     setAddressError('');
                   }}
                   disabled={isSubmitting}
-                  className="px-2 py-1 rounded-lg bg-surface-raised text-slate-500 font-mono text-[0.65rem] transition-all hover:bg-navy-900 hover:text-white"
+                  className="px-3 py-2 rounded-lg bg-surface-raised text-slate-500 font-mono text-xs lg:px-2 lg:py-1 lg:text-[0.65rem] transition-all hover:bg-navy-900 hover:text-white"
                 >
                   {addr.slice(0, 8)}…{addr.slice(-4)}
                 </button>
@@ -201,7 +201,7 @@ export function TransferForm({
                   onClick={() => setAmount(v)}
                   disabled={isSubmitting}
                   className={cn(
-                    'px-3 py-1 rounded-lg text-xs font-semibold transition-all',
+                    'px-4 py-2 rounded-lg text-sm lg:px-3 lg:py-1 lg:text-xs font-semibold transition-all',
                     amount === v
                       ? 'bg-navy-900 text-white'
                       : 'bg-surface-raised text-slate-500 hover:bg-navy-900 hover:text-white',

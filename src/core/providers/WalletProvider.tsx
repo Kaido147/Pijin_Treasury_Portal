@@ -18,6 +18,11 @@ import type { WalletState } from '@/core/types';
 export interface WalletContextValue extends WalletState {
   /** True while connect/disconnect is in-flight */
   isConnecting: boolean;
+  /** Sign a Soroban transaction XDR via the active wallet adapter */
+  signTransaction: (
+    xdr: string,
+    opts?: { networkPassphrase?: string; address?: string }
+  ) => Promise<string>;
 }
 
 export const WalletContext = createContext<WalletContextValue | null>(null);
@@ -84,6 +89,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setBalance(result.balance);
       setNetwork('testnet');
       setIsConnected(true);
+<<<<<<< HEAD
     } catch (err: any) {
       // Catch the declined signing error message
       const rawError = err?.message || err?.toString() || '';
@@ -106,6 +112,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       toast.error(finalMessage);
       setPublicKey(null);
       setIsConnected(false);
+=======
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Wallet connection failed.';
+      if (message === 'WALLET_SIGN_REJECTED') {
+        toast.error('Signature request cancelled. Connect wallet to try again.');
+      } else {
+        toast.error(message);
+      }
+>>>>>>> 2a7fb8418800ae4c96af21fd4cdd31529137dcc3
     } finally {
       setIsConnecting(false);
     }
@@ -125,9 +140,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Stable reference — delegates to active adapter for unified error normalization
+  const signTransaction = useCallback(
+    (xdr: string, opts?: { networkPassphrase?: string; address?: string }) =>
+      stellarKitAdapter.signTransaction(xdr, opts),
+    []
+  );
+
   return (
     <WalletContext.Provider
-      value={{ isConnected, isConnecting, publicKey, balance, network, connect, disconnect }}
+      value={{ isConnected, isConnecting, publicKey, balance, network, connect, disconnect, signTransaction }}
     >
       {children}
     </WalletContext.Provider>

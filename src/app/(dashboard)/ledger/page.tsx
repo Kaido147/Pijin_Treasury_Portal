@@ -41,7 +41,7 @@ export default function LedgerPage() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Page header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-y-3">
         <div>
           <h1 className="text-navy-900 font-extrabold text-2xl">
             Transaction Ledger
@@ -52,7 +52,7 @@ export default function LedgerPage() {
         </div>
 
         {/* Right controls: search + live toggle */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
           {/* Search input */}
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
@@ -64,7 +64,7 @@ export default function LedgerPage() {
                 setSearchQuery(e.target.value)
               }
               placeholder="Search hash or memo…"
-              className="pl-8 pr-3 py-2 text-xs rounded-xl border border-border-default bg-white text-navy-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-900/20 w-48 shadow-card transition-all"
+              className="pl-8 pr-3 py-2 text-base lg:text-xs rounded-xl border border-border-default bg-white text-navy-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-900/20 w-full lg:w-48 shadow-card transition-all"
             />
           </div>
 
@@ -135,7 +135,7 @@ export default function LedgerPage() {
 
         {/* Table header */}
         <div
-          className="grid px-6 py-2 bg-surface text-slate-400 text-[0.68rem] font-bold uppercase tracking-widest"
+          className="hidden lg:grid px-6 py-2 bg-surface text-slate-400 text-[0.68rem] font-bold uppercase tracking-widest"
           style={{
             gridTemplateColumns: "28px 1fr 80px 100px 100px 90px",
             gap: "12px",

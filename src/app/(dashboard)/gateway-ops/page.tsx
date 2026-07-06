@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Server, Plus } from "lucide-react";
+import { toast } from "sonner";
+import type { RegistryFailureCode } from "@/hooks/useGatewayNodes";
 import { useGatewayNodes } from "@/hooks/useGatewayNodes";
 import { GatewayNodeCard } from "@/components/domain/GatewayNodeCard";
 import { RegisterNodeForm } from "@/components/domain/RegisterNodeForm";
@@ -17,18 +19,79 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 
+// ─── Failure-Code Toast Title Map ───────────────────────
+
+const FAILURE_TITLES: Record<RegistryFailureCode, string> = {
+  RELAYER_UNFUNDED:    'Relayer Unfunded',
+  RESOURCE_EXHAUSTION: 'Resource Limit Exceeded',
+  STATE_COLLISION:     'Gateway Already Registered',
+  AUTH_FAILED:         'Authentication Failed',
+  UNKNOWN:             'Operation Failed',
+};
+
+type TabId = 'ACTIVE' | 'REVOKED';
+
 export default function GatewayOpsPage() {
-  const { nodes, addNode, isSubmitting, isSuccess, isLoading, loadError, submitError } = useGatewayNodes(); // hooks for managing node registration
+  const {
+    nodes,
+    activeNodes,
+    revokedNodes,
+    addNode,
+    removeNode,
+    txState,
+    isSubmitting,
+    isSuccess,
+    isLoading,
+    loadError,
+  } = useGatewayNodes();
+
   const [showRegisterForm, setShowRegisterForm] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabId>('ACTIVE');
+  const [prefillAddress, setPrefillAddress] = useState<string | undefined>(undefined);
 
   // Fund-node modal state
   const [fundDialogOpen, setFundDiaglogOpen] = useState<boolean>(false);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const { formState, txHash, submitTransfer, resetTransfer } = useTransfer();
 
+  // Whether ANY revoke TX is in-flight (covers all active states)
+  const isRevoking =
+    txState.status === 'BROADCASTING' ||
+    txState.status === 'AWAITING_SIGNATURE' ||
+    txState.status === 'ON_CHAIN_MINING';
+
+  // Event-driven: capture addNode return; fire toast immediately on failure
+  const handleRegistration = async (data: { name: string; address: string; region: string }) => {
+    const result = await addNode(data);
+    if (result?.status === 'FAILED') {
+      toast.error(
+        FAILURE_TITLES[result.failureCode ?? 'UNKNOWN'],
+        { description: result.failureMessage ?? undefined },
+      );
+    }
+  };
+
+  const handleRevoke = async (address: string) => {
+    const result = await removeNode(address);
+    if (result?.status === 'FAILED') {
+      toast.error(
+        FAILURE_TITLES[result.failureCode ?? 'UNKNOWN'],
+        { description: result.failureMessage ?? undefined },
+      );
+    } else if (!result) {
+      // success (void return)
+      toast.success('Gateway Revoked', { description: 'Node de-whitelisted on-chain and marked inactive.' });
+    }
+  };
+
   const handleFundClick = (address: string): void => {
     setSelectedAddress(address);
     setFundDiaglogOpen(true);
+  };
+
+  const handleReauthorize = (address: string): void => {
+    setPrefillAddress(address);
+    setShowRegisterForm(true);
   };
 
   const handleDialogClose = (open: boolean): void => {
@@ -40,22 +103,26 @@ export default function GatewayOpsPage() {
     }
   };
 
-  // Calculate stats dynamically
-  const activeNodesCount = nodes.filter(
-    (node) => node.status === "active",
-  ).length;
-  const totalNodesCount = nodes.length;
+  // Nodes to render for current tab
+  const displayedNodes = activeTab === 'ACTIVE' ? activeNodes : revokedNodes;
+
+  const tabs: { id: TabId; label: string; count: number }[] = [
+    { id: 'ACTIVE', label: 'Active', count: activeNodes.length },
+    { id: 'REVOKED', label: 'Revoked', count: revokedNodes.length },
+  ];
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Page header with dynamic count & register button */}
-      <div className="flex items-center justify-between">
+      {/* Page header with register button */}
+      <div className="flex flex-wrap items-center justify-between gap-y-2">
         <div>
           <h1 className="text-navy-900 font-extrabold text-2xl">
             Gateway Operations
           </h1>
           <p className="text-slate-500 text-sm mt-0.5 font-medium">
-            {isLoading ? "Loading..." : `${activeNodesCount} of ${totalNodesCount} nodes active`}
+            {isLoading
+              ? "Loading..."
+              : `${activeNodes.length} active · ${revokedNodes.length} revoked · ${nodes.length} total`}
           </p>
         </div>
 
@@ -63,7 +130,7 @@ export default function GatewayOpsPage() {
         <button
           onClick={() => setShowRegisterForm((prev) => !prev)}
           className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all",
+            "flex items-center gap-2 px-4 py-2.5 lg:py-2 rounded-full text-sm font-semibold transition-all h-11 lg:h-auto",
             showRegisterForm
               ? "bg-slate-100 border border-border-default text-slate-700 hover:bg-slate-200"
               : "bg-navy-900 text-white hover:bg-navy-800 shadow-md",
@@ -77,51 +144,85 @@ export default function GatewayOpsPage() {
       {/* Conditional Registration Form (Spans full width when visible) */}
       {showRegisterForm && (
         <RegisterNodeForm
-          onSubmit={addNode} // addNode function to submit on smart contract
+          onSubmit={handleRegistration}
           isSubmitting={isSubmitting}
           isSuccess={isSuccess}
+          txState={txState}
+          revokedNodes={revokedNodes}
+          prefillAddress={prefillAddress}
         />
       )}
 
-      {/* Error State */}
+      {/* Error State — Load */}
       {loadError && (
         <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-200">
           Failed to load gateway nodes: {loadError}
         </div>
       )}
 
-      {submitError && (
-        <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-200">
-          Failed to register gateway node: {submitError}
-        </div>
-      )}
+      {/* Segmented Tab Header */}
+      <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl w-fit">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            id={`tab-${tab.id.toLowerCase()}`}
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all",
+              activeTab === tab.id
+                ? "bg-navy-900 text-white shadow-sm"
+                : "text-slate-500 hover:text-navy-900 hover:bg-white/60",
+            )}
+          >
+            {tab.label}
+            <span
+              className={cn(
+                "text-xs font-bold px-1.5 py-0.5 rounded-full",
+                activeTab === tab.id
+                  ? "bg-white/20 text-white"
+                  : "bg-slate-200 text-slate-600",
+              )}
+            >
+              {tab.count}
+            </span>
+          </button>
+        ))}
+      </div>
 
-      {/* Node List (Spans full width, stacked in a column with space-y-3) */}
+      {/* Node List */}
       <div className="space-y-3">
         {isLoading ? (
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy-900"></div>
           </div>
-        ) : nodes.length === 0 && !loadError ? (
+        ) : displayedNodes.length === 0 && !loadError ? (
           <EmptyState
             icon={Server}
-            title="No nodes registered"
-            description="Register your first gateway node using the form."
+            title={activeTab === 'ACTIVE' ? "No active nodes" : "No revoked nodes"}
+            description={
+              activeTab === 'ACTIVE'
+                ? "Register your first gateway node using the form above."
+                : "Revoked nodes will appear here after de-whitelisting."
+            }
           />
         ) : (
-          nodes.map((node) => (
+          displayedNodes.map((node) => (
             <GatewayNodeCard
               key={node.id}
               node={node}
               onFundClick={handleFundClick}
+              isRevoked={activeTab === 'REVOKED'}
+              onRevokeClick={activeTab === 'ACTIVE' ? handleRevoke : undefined}
+              isRevoking={isRevoking}
+              onReauthorize={activeTab === 'REVOKED' ? handleReauthorize : undefined}
             />
           ))
         )}
       </div>
 
-      {/*  Fund Node Dialog */}
+      {/* Fund Node Dialog */}
       <Dialog open={fundDialogOpen} onOpenChange={handleDialogClose}>
-        <DialogContent className="max-w-lg p-0 overflow-hidden rounded-3xl border-0">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg p-0 overflow-hidden rounded-3xl border-0">
           <DialogHeader className="sr-only">
             <DialogTitle>Fund Gateway Node</DialogTitle>
             <DialogDescription>

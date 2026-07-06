@@ -2,6 +2,7 @@
 
 import { RefreshCw } from "lucide-react";
 import { useNetworkHealth } from "@/hooks/useNetworkHealth";
+import { useGatewayNodes } from "@/hooks/useGatewayNodes";
 import { useStellarWallet } from "@/hooks/useStellarWallet";
 import { STAT_ICON_MAP, XLM_TO_PHP_RATE } from "@/core/constants";
 import { StatCard } from "@/components/domain/StatCard";
@@ -14,6 +15,15 @@ import type { WalletInfo } from "@/core/types";
 export default function CommandCenterPage() {
   const { services, stats, isRefreshing, refresh, lastUpdated } =
     useNetworkHealth();
+
+  const { activeNodes } = useGatewayNodes();
+
+  // Override 'Active Nodes' metric with live count from DB
+  const liveStats = stats.map((m) =>
+    m.label === 'Active Nodes'
+      ? { ...m, value: activeNodes.length.toString() }
+      : m,
+  );
 
   const { isConnected, publicKey, balance } = useStellarWallet();
 
@@ -58,7 +68,7 @@ export default function CommandCenterPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {isRefreshing
           ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
-          : stats.map((metric) => {
+          : liveStats.map((metric) => {
             const Icon = STAT_ICON_MAP[metric.iconName] ?? STAT_ICON_MAP["activity"];
             return (
               <StatCard

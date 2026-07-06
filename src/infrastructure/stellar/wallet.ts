@@ -41,6 +41,12 @@ export interface WalletAdapter {
 
   /** Sign a raw message/nonce for authentication */
   signMessage: (message: string) => Promise<string>;
+
+  /** Sign a Soroban transaction XDR; returns signed base64 XDR string */
+  signTransaction: (
+    xdr: string,
+    opts?: { networkPassphrase?: string; address?: string }
+  ) => Promise<string>;
 }
 
 // ─── Horizon Helper ─────────────────────────────────────
@@ -80,7 +86,12 @@ export const mockWalletAdapter: WalletAdapter = {
 
   signMessage: async (message: string) => {
     return "mock-signature";
-  }
+  },
+
+  signTransaction: async (xdr: string) => {
+    // Dev mock: return the unsigned XDR unchanged (no real signing needed)
+    return xdr;
+  },
 };
 
 // ─── Freighter Adapter (Production) ─────────────────────
@@ -121,7 +132,18 @@ export const stellarKitAdapter: WalletAdapter = {
       console.warn("signMessage not supported or failed, using dummy signature");
       return "dummy-signature";
     }
-  }
+  },
+
+  signTransaction: async (
+    xdr: string,
+    opts?: { networkPassphrase?: string; address?: string }
+  ) => {
+    const { signedTxXdr } = await StellarWalletsKit.signTransaction(xdr, {
+      networkPassphrase: opts?.networkPassphrase ?? NETWORK_PASSPHRASE,
+      address: opts?.address,
+    });
+    return signedTxXdr;
+  },
 };
 
 // ─── Soroban RPC (Future — Smart Contracts) ─────────────
