@@ -1,0 +1,48 @@
+name: Pijin Supabase Backup
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *' # Runs every day at midnight
+jobs:   
+  run_db_backup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      supabase_db_url: ${{ secrets.SUPABASE_DB_URL }}   # For example: postgresql://postgres:[YOUR-PASSWORD]@db.<ref>.supabase.co:5432/postgres
+      backup_enabled: ${{ vars.BACKUP_ENABLED }}
+    steps:
+    - name: Check the backup condition
+      run: |
+        if [ "$BACKUP_ENABLED" != true ]; then
+          echo "Backups are disabled, check the settings"
+          exit 0
+        fi
+    - uses: actions/checkout@v3
+      with:
+        ref: ${{ github.head_ref }}
+
+    - name: Setup Supabase CLI
+      if: env.backup_enabled == 'true'
+      uses: supabase/setup-cli@v1
+      with:
+        version: latest
+    # Begin the Backup Operation
+    - name: Backup roles
+      run: supabase db dump --db-url "$supabase_db_url" -f roles.sql --role-only
+      
+    - name: Backup schema
+      run: supabase db dump --db-url "$supabase_db_url" -f schema.sql
+      
+    - name: Backup data
+      run: supabase db dump --db-url "$supabase_db_url" -f data.sql --data-only --use-copy
+      
+    # End the Backup Operation
+    - uses: stefanzweifel/git-auto-commit-action@v4
+      with:
+        commit_message: weekly supabase backup for pijin
