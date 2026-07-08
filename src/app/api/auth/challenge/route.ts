@@ -1,10 +1,14 @@
-import { Keypair } from '@stellar/stellar-sdk';
+import { Keypair, WebAuth } from '@stellar/stellar-sdk';
 import { NextResponse } from 'next/server';
 import { createServiceClient, createClient } from '@/infrastructure/supabase/server';
 import { cookies } from 'next/headers';
 import { SignJWT } from 'jose';
+import crypto from 'crypto';
 
-const secretJwtKey = process.env.JWT_SECRET_KEY;
+const secretJwtKey = process.env.JWT_SECRET_KEY || 'default_secret';
+const seed = crypto.createHash('sha256').update(secretJwtKey).digest();
+const serverKeypair = Keypair.fromRawEd25519Seed(seed);
+const NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015';
 
 export async function POST(request: Request) {
     try {
@@ -23,97 +27,65 @@ export async function POST(request: Request) {
         const supabase = createServiceClient();
 
         // ── Parse request body ──
-        const { adminAddress, signature, nonce } = await request.json();
+        const { adminAddress, signedXdr } = await request.json();
 
         if (!adminAddress) {
             return NextResponse.json({ error: 'adminAddress is required' }, { status: 400 });
         }
 
-        // ── Generate Nonce Flow (when no signature is provided) ──
-        if (!signature) {
-            // Check the admin table first
+        // ── Generate Challenge Flow ──
+        if (!signedXdr) {
+            // Check the admin table first to ensure the user is an admin
             const { data: adminData, error: adminError } = await supabase
                 .from('admin')
-                .select('*')
+                .select('id')
                 .eq('stellar_address', adminAddress)
                 .maybeSingle();
 
             if (adminError) {
-                console.error("❌ CRITICAL SUPABASE SERVER ERROR (Flow A):", adminError.message, adminError.details);
+                console.error("❌ CRITICAL SUPABASE SERVER ERROR:", adminError.message, adminError.details);
                 return NextResponse.json({ error: adminError.message }, { status: 500 });
             }
             if (!adminData) {
-                console.error("⚠️ Flow A Defect: Admin row missing for address:", adminAddress);
                 return NextResponse.json({ error: 'Admin not found' }, { status: 404 });
             }
 
-            // Generate a new nonce
-            const newNonce = crypto.randomUUID();
+            try {
+                // Generate a SEP-10 challenge transaction valid for 5 minutes
+                const challengeXdr = WebAuth.buildChallengeTx(
+                    serverKeypair,
+                    adminAddress,
+                    'pijin.network',
+                    300,
+                    NETWORK_PASSPHRASE,
+                    'pijin.network'
+                );
 
-            // Save the new nonce to the admin table
-            const { error: updateError } = await supabase
-                .from('admin')
-                .update({ current_nonce: newNonce })
-                .eq('stellar_address', adminAddress);
-
-            if (updateError) {
-                return NextResponse.json({ error: 'Failed to save nonce' }, { status: 500 });
+                return NextResponse.json({ transactionXdr: challengeXdr });
+            } catch (e: any) {
+                console.error('Failed to build SEP-10 challenge:', e);
+                return NextResponse.json({ error: 'Failed to build challenge' }, { status: 500 });
             }
-
-            return NextResponse.json({ nonce: newNonce });
         }
 
-
-        // Fetch the actual nonce from Supabase to ensure it matches what was sent
-        const { data: verifyData, error: verifyError } = await supabase
-            .from('admin')
-            .select('current_nonce')
-            .eq('stellar_address', adminAddress)
-            .maybeSingle();
-
-        if (verifyError) {
-            console.error("❌ CRITICAL SUPABASE SERVER ERROR (Flow B):", verifyError.message, verifyError.details);
-            return NextResponse.json({ error: verifyError.message }, { status: 500 });
-        }
-        if (!verifyData) {
-            console.error("⚠️ Flow B Defect: Admin row missing for address:", adminAddress);
-            return NextResponse.json({ error: 'Admin not found' }, { status: 404 });
-        }
-
-        if (verifyData.current_nonce !== nonce) {
-            console.warn(`❌ Nonce Desync! DB has: [${verifyData.current_nonce}], UI sent: [${nonce}]`);
-            return NextResponse.json({ error: 'Invalid or expired nonce' }, { status: 401 });
-        }
-
-        // Verify the signature
-        const keypair = Keypair.fromPublicKey(adminAddress);
-        const dataBuffer = Buffer.from(nonce, 'utf-8');
-        const signatureBuffer = Buffer.from(signature, 'base64');
-
-        let isValid = false;
+        // ── Verify Challenge Flow ──
         try {
-            isValid = keypair.verify(dataBuffer, signatureBuffer);
-        } catch (e) {
-            console.error('Signature verification threw an error:', e);
-        }
+            const signers = WebAuth.verifyChallengeTxSigners(
+                signedXdr,
+                serverKeypair.publicKey(),
+                NETWORK_PASSPHRASE,
+                [adminAddress],
+                'pijin.network',
+                'pijin.network'
+            );
 
-        // Freighter does not sign raw bytes (it uses a specific payload format to prevent signing blind transactions).
-        // A proper implementation requires SEP-0010 (Challenge Transactions).
-        // For development purposes, we will bypass this check if we are not in production.
-        if (!isValid) {
-            if (process.env.NODE_ENV !== 'production') {
-                console.warn('Bypassing signature verification for local development. Please implement SEP-0010 for production.');
-                isValid = true;
-            } else {
-                return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+            if (!signers.includes(adminAddress)) {
+                return NextResponse.json({ error: 'Admin did not sign the challenge' }, { status: 401 });
             }
+        } catch (e: any) {
+            console.error('SEP-10 verification error:', e);
+            return NextResponse.json({ error: 'Invalid SEP-010 signature' }, { status: 401 });
         }
-
-        // Clear nonce in DB to prevent replay attacks
-        await supabase
-            .from('admin')
-            .update({ current_nonce: null })
-            .eq('stellar_address', adminAddress);
 
         // ── Issue Gate 2 JWT (Cryptographic Authority Token) ──
         const secret = new TextEncoder().encode(secretJwtKey);
