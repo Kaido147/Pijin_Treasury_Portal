@@ -58,10 +58,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         } catch (e) { }
         throw new Error(errMessage);
       }
-      const { nonce } = await challengeRes.json();
+      const { transactionXdr } = await challengeRes.json();
 
-      // Sign the nonce with the wallet
-      const signature = await stellarKitAdapter.signMessage(nonce);
+      // Sign the SEP-10 challenge transaction with the wallet
+      const signedXdr = await stellarKitAdapter.signTransaction(transactionXdr, {
+        networkPassphrase: process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015',
+        address: result.publicKey,
+      });
 
       // Verify the signature to get the JWT cookie
       const verifyRes = await fetch(`/api/auth/challenge`, {
@@ -71,8 +74,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         },
         body: JSON.stringify({
           adminAddress: result.publicKey,
-          nonce,
-          signature
+          signedXdr
         }),
       });
 
