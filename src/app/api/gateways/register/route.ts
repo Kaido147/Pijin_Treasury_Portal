@@ -204,7 +204,7 @@ export async function POST(request: Request) {
             // Determine error type based on the simulation error message
             let errorType = 'simulation_failed';
             const errorMessage = simulation.error?.toLowerCase() || '';
-            
+
             if (errorMessage.includes('gas') || errorMessage.includes('limit') || errorMessage.includes('budget') || errorMessage.includes('resource')) {
                 errorType = 'out_of_gas';
             }
