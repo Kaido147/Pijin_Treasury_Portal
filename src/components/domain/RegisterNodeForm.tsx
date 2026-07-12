@@ -42,6 +42,8 @@ interface RegisterNodeFormProps {
   txState?: RegistryTxState;
   revokedNodes?: GatewayNode[];
   prefillAddress?: string;
+  /** Called when the user explicitly cancels — wired by the parent Dialog's onOpenChange. */
+  onCancel?: () => void;
 }
 
 export function RegisterNodeForm({
@@ -51,6 +53,7 @@ export function RegisterNodeForm({
   txState,
   revokedNodes = [],
   prefillAddress,
+  onCancel: _onCancel,
 }: RegisterNodeFormProps) {
   const [formData, setFormData] = useState<{
     name: string;
