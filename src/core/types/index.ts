@@ -13,7 +13,8 @@ export interface WalletState {
   balance: number;
   network: 'testnet' | 'mainnet';
   connect: () => void;
-  disconnect: () => void;
+  disconnect: () => Promise<void>;
+  logout: () => Promise<void>;
   signTransaction: (xdr: string, opts?: { networkPassphrase?: string; address?: string }) => Promise<string>;
 }
 

@@ -12,7 +12,6 @@ import { cn } from "@/core/utils";
 import { useTransfer } from "@/hooks/useTransfer";
 import { useStellarWallet } from "@/hooks/useStellarWallet";
 import { TransferForm } from "@/components/domain/TransferForm";
-import { PinConfirmDialog } from "@/components/domain/PinConfirmDialog";
 import {
   Dialog,
   DialogContent,
@@ -94,34 +93,20 @@ export default function GatewayOpsPage() {
   };
 
   // ─── Fund Node — Web2.5 flow ─────────────────────────
-  // Form collects { address, amount, memo } → stash → PIN dialog
-  // opens → on confirm: POST /api/treasury/fund with pin.
+  // Form manages multi-step flow internally. On pin confirmation,
+  // it invokes submitTransfer to POST to /api/treasury/fund.
 
   const [fundDialogOpen, setFundDialogOpen] = useState<boolean>(false);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
-  const { formState, txHash, submitTransfer, resetTransfer } = useTransfer();
-
-  // Pending fund data stashed while awaiting PIN entry (Option A — TransferForm untouched)
-  const [fundPinDialogOpen, setFundPinDialogOpen] = useState(false);
-  const [pendingFundData, setPendingFundData] = useState<{ address: string; amount: string; memo: string } | null>(null);
-
-  // Called by TransferForm.onSubmit — stash data, open PIN dialog
-  const handleFundStash = (data: { address: string; amount: string; memo: string }): void => {
-    setPendingFundData(data);
-    setFundPinDialogOpen(true);
-  };
-
-  // Called by PinConfirmDialog.onConfirm — send real treasury funding request
-  const handleFundPinConfirm = async (pin: string): Promise<void> => {
-    if (!pendingFundData) return;
-    await submitTransfer({ ...pendingFundData, pin });
-    // submitTransfer throws on failure — PinConfirmDialog catches and shows error.
-    // On success formState → 'success', close PIN dialog.
-    setFundPinDialogOpen(false);
-    setPendingFundData(null);
-  };
+  const { formState, txHash, submitTransfer, resetTransfer, transferError } = useTransfer();
 
   const handleFundClick = (address: string): void => {
+    if (!isConnected) {
+      toast.error('Wallet Not Connected', {
+        description: 'Connect your Freighter wallet before funding a gateway node.',
+      });
+      return;
+    }
     setSelectedAddress(address);
     setFundDialogOpen(true);
   };
@@ -143,8 +128,6 @@ export default function GatewayOpsPage() {
       // Reset form state when dialog is dismissed
       resetTransfer();
       setSelectedAddress(null);
-      setPendingFundData(null);
-      setFundPinDialogOpen(false);
     }
   };
 
@@ -296,25 +279,14 @@ export default function GatewayOpsPage() {
             <TransferForm
               formState={formState}
               txHash={txHash}
-              onSubmit={handleFundStash}
+              transferError={transferError}
+              onSubmit={submitTransfer}
               onReset={resetTransfer}
               prefilledAddress={selectedAddress}
             />
           )}
         </DialogContent>
       </Dialog>
-
-      {/* PIN Confirm Dialog — gates treasury funding (Web2.5) */}
-      <PinConfirmDialog
-        open={fundPinDialogOpen}
-        onOpenChange={(open) => {
-          setFundPinDialogOpen(open);
-          if (!open) setPendingFundData(null);
-        }}
-        onConfirm={handleFundPinConfirm}
-        title="Confirm Treasury Transfer"
-        description="Enter your 6-digit treasury PIN to authorize the XLM transfer."
-      />
     </div>
   );
 }
