@@ -12,6 +12,7 @@ import { cn } from "@/core/utils";
 import { useTransfer } from "@/hooks/useTransfer";
 import { useStellarWallet } from "@/hooks/useStellarWallet";
 import { TransferForm } from "@/components/domain/TransferForm";
+import { PinConfirmDialog } from "@/components/domain/PinConfirmDialog";
 import {
   Dialog,
   DialogContent,
@@ -63,26 +64,20 @@ export default function GatewayOpsPage() {
     setShowRegisterForm(true);
   };
 
-  // Fund-node modal state
-  const [fundDialogOpen, setFundDiaglogOpen] = useState<boolean>(false);
-  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
-  const { formState, txHash, submitTransfer, resetTransfer } = useTransfer();
+  // ─── Gateway Registration — pure Web3 flow ──────────
+  // Form submits → addNode → Freighter signs XDR → on-chain.
+  // No PIN involved. PIN belongs exclusively in the funding flow.
 
-  // Whether ANY revoke TX is in-flight (covers all active states)
-  const isRevoking =
-    txState.status === 'BROADCASTING' ||
-    txState.status === 'AWAITING_SIGNATURE' ||
-    txState.status === 'ON_CHAIN_MINING';
-
-  // Event-driven: capture addNode return; fire toast immediately on failure
-  const handleRegistration = async (data: { name: string; address: string; region: string }) => {
+  const handleRegistration = async (data: { name: string; address: string; region: string }): Promise<void> => {
     const result = await addNode(data);
     if (result?.status === 'FAILED') {
       toast.error(
         FAILURE_TITLES[result.failureCode ?? 'UNKNOWN'],
         { description: result.failureMessage ?? undefined },
       );
+      return;
     }
+    // SUCCESS is handled by txState transitions in RegisterNodeForm
   };
 
   const handleRevoke = async (address: string) => {
@@ -98,9 +93,37 @@ export default function GatewayOpsPage() {
     }
   };
 
+  // ─── Fund Node — Web2.5 flow ─────────────────────────
+  // Form collects { address, amount, memo } → stash → PIN dialog
+  // opens → on confirm: POST /api/treasury/fund with pin.
+
+  const [fundDialogOpen, setFundDialogOpen] = useState<boolean>(false);
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
+  const { formState, txHash, submitTransfer, resetTransfer } = useTransfer();
+
+  // Pending fund data stashed while awaiting PIN entry (Option A — TransferForm untouched)
+  const [fundPinDialogOpen, setFundPinDialogOpen] = useState(false);
+  const [pendingFundData, setPendingFundData] = useState<{ address: string; amount: string; memo: string } | null>(null);
+
+  // Called by TransferForm.onSubmit — stash data, open PIN dialog
+  const handleFundStash = (data: { address: string; amount: string; memo: string }): void => {
+    setPendingFundData(data);
+    setFundPinDialogOpen(true);
+  };
+
+  // Called by PinConfirmDialog.onConfirm — send real treasury funding request
+  const handleFundPinConfirm = async (pin: string): Promise<void> => {
+    if (!pendingFundData) return;
+    await submitTransfer({ ...pendingFundData, pin });
+    // submitTransfer throws on failure — PinConfirmDialog catches and shows error.
+    // On success formState → 'success', close PIN dialog.
+    setFundPinDialogOpen(false);
+    setPendingFundData(null);
+  };
+
   const handleFundClick = (address: string): void => {
     setSelectedAddress(address);
-    setFundDiaglogOpen(true);
+    setFundDialogOpen(true);
   };
 
   const handleReauthorize = (address: string): void => {
@@ -115,11 +138,13 @@ export default function GatewayOpsPage() {
   };
 
   const handleDialogClose = (open: boolean): void => {
-    setFundDiaglogOpen(open);
+    setFundDialogOpen(open);
     if (!open) {
-      // Reset Form state when dialog is dismissed
+      // Reset form state when dialog is dismissed
       resetTransfer();
       setSelectedAddress(null);
+      setPendingFundData(null);
+      setFundPinDialogOpen(false);
     }
   };
 
@@ -133,6 +158,12 @@ export default function GatewayOpsPage() {
 
   // Nodes to render for current tab
   const displayedNodes = activeTab === 'ACTIVE' ? activeNodes : revokedNodes;
+
+  // Whether ANY revoke TX is in-flight (covers all active states)
+  const isRevoking =
+    txState.status === 'BROADCASTING' ||
+    txState.status === 'AWAITING_SIGNATURE' ||
+    txState.status === 'ON_CHAIN_MINING';
 
   const tabs: { id: TabId; label: string; count: number }[] = [
     { id: 'ACTIVE', label: 'Active', count: activeNodes.length },
@@ -258,20 +289,32 @@ export default function GatewayOpsPage() {
           <DialogHeader className="sr-only">
             <DialogTitle>Fund Gateway Node</DialogTitle>
             <DialogDescription>
-              Send XLM directly to the selected gateway node address.
+              Send XLM directly to the selected gateway node address via the treasury hot wallet.
             </DialogDescription>
           </DialogHeader>
           {selectedAddress !== null && (
             <TransferForm
               formState={formState}
               txHash={txHash}
-              onSubmit={submitTransfer}
+              onSubmit={handleFundStash}
               onReset={resetTransfer}
               prefilledAddress={selectedAddress}
             />
           )}
         </DialogContent>
       </Dialog>
+
+      {/* PIN Confirm Dialog — gates treasury funding (Web2.5) */}
+      <PinConfirmDialog
+        open={fundPinDialogOpen}
+        onOpenChange={(open) => {
+          setFundPinDialogOpen(open);
+          if (!open) setPendingFundData(null);
+        }}
+        onConfirm={handleFundPinConfirm}
+        title="Confirm Treasury Transfer"
+        description="Enter your 6-digit treasury PIN to authorize the XLM transfer."
+      />
     </div>
   );
 }
