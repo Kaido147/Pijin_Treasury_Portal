@@ -151,7 +151,11 @@ export type NetworkActivity =
 /** BFF API response from /api/ledger/events */
 export interface LedgerEventsResponse {
   events: NetworkActivity[];
-  /** Opaque pagination cursor from Stellar RPC */
+  /**
+   * ID of the oldest event in this page.
+   * Pass as `before=` on the next load-more request for keyset pagination.
+   * (Previously an opaque Stellar RPC cursor — now a Supabase event ID.)
+   */
   cursor: string;
   latestLedger: number;
   oldestLedger: number;
