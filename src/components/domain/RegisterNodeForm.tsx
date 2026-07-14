@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Server, CheckCircle2, Loader2, ChevronDown, Info, RefreshCw, PlusCircle, X } from 'lucide-react';
+import { Server, CheckCircle2, Loader2, ChevronDown, Info, RefreshCw, PlusCircle, X, Check } from 'lucide-react';
 import type { RegionCode, GatewayNode, Region } from '@/core/types';
 import type { RegistryTxState } from '@/hooks/useGatewayNodes';
 
@@ -220,81 +220,91 @@ export function RegisterNodeForm({
                 Region
               </label>
 
-              {/* Dropdown */}
-              <div className="relative">
-                <select
-                  id="node-region-input"
-                  value={formData.region}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === 'ADD_NEW') {
-                      setShowAddRegion(true);
-                      return;
-                    }
-                    setFormData((p) => ({ ...p, region: val }));
-                  }}
-                  required
-                  disabled={isSubmitting || regions.length === 0 && !regionsError}
-                  className="w-full appearance-none px-4 py-2.5 pr-10 rounded-xl border-[1.5px] border-border-default bg-slate-50 text-base lg:text-sm text-navy-900 outline-none transition-all focus:border-navy-700 focus:bg-white cursor-pointer disabled:opacity-50"
-                >
-                  <option value="" disabled>
-                    {regionsError ? '⚠ Failed to load regions' : regions.length === 0 ? 'Loading…' : '— Select region —'}
-                  </option>
-                  {regions.map((r) => (
-                    <option key={r.id} value={r.slug}>
-                      {r.name}
-                    </option>
-                  ))}
-                  <option value="ADD_NEW">＋ Add new region…</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              </div>
-
-              {/* Inline Add-Region modal */}
-              {showAddRegion && (
-                <div className="mt-2 p-3 rounded-xl border border-navy-200 bg-slate-50 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-navy-900 text-[0.75rem] font-bold flex items-center gap-1.5">
-                      <PlusCircle className="w-3.5 h-3.5" />
-                      New Region
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => { setShowAddRegion(false); setNewRegionInput(''); setAddRegionError(null); }}
-                      className="text-slate-400 hover:text-slate-600 transition-colors"
-                      aria-label="Cancel add region"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
+              {showAddRegion ? (
+                /* In-place creation view */
+                <div className="space-y-1.5">
                   <div className="flex gap-2">
                     <input
                       ref={newRegionRef}
                       id="new-region-input"
                       value={newRegionInput}
                       onChange={(e) => setNewRegionInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddRegion(); } }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddRegion();
+                        }
+                      }}
                       placeholder='e.g. "SEA 06" or "Davao"'
                       disabled={isAddingRegion}
-                      className="flex-1 px-3 py-1.5 rounded-lg border-[1.5px] border-border-default bg-white text-sm text-navy-900 outline-none focus:border-navy-700"
+                      className="flex-1 min-w-0 px-4 py-2.5 rounded-xl border-[1.5px] border-border-default bg-white text-base lg:text-sm text-navy-900 outline-none transition-all focus:border-navy-700"
                     />
                     <button
                       id="confirm-add-region-btn"
                       type="button"
                       onClick={handleAddRegion}
                       disabled={isAddingRegion || !newRegionInput.trim()}
-                      className="px-3 py-1.5 rounded-lg bg-navy-900 text-white text-sm font-semibold disabled:opacity-50 hover:bg-navy-700 transition-colors flex items-center gap-1.5"
+                      className="w-11 h-11 rounded-xl bg-navy-900 text-white flex items-center justify-center disabled:opacity-50 hover:bg-navy-700 transition-colors shrink-0 shadow-md cursor-pointer"
+                      title="Confirm Region"
                     >
-                      {isAddingRegion ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                      Add
+                      {isAddingRegion ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Check className="w-4 h-4 text-white" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddRegion(false);
+                        setNewRegionInput('');
+                        setAddRegionError(null);
+                      }}
+                      disabled={isAddingRegion}
+                      className="w-11 h-11 rounded-xl border-[1.5px] border-border-default bg-white text-slate-400 hover:text-slate-600 flex items-center justify-center disabled:opacity-50 transition-colors shrink-0 cursor-pointer"
+                      title="Cancel"
+                    >
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
                   {addRegionError && (
                     <p className="text-red-600 text-[0.72rem]">{addRegionError}</p>
                   )}
-                  <p className="text-slate-400 text-[0.7rem]">
-                    Slug auto-generated: <span className="font-mono text-navy-700">{newRegionInput ? normalizeSlug(newRegionInput) : '—'}</span>
-                  </p>
+                  {newRegionInput.trim() && (
+                    <p className="text-slate-400 text-[0.7rem]">
+                      Slug: <span className="font-mono text-navy-700">{normalizeSlug(newRegionInput)}</span>
+                    </p>
+                  )}
+                </div>
+              ) : (
+                /* Dropdown view */
+                <div className="relative">
+                  <select
+                    id="node-region-input"
+                    value={formData.region}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === 'ADD_NEW') {
+                        setShowAddRegion(true);
+                        return;
+                      }
+                      setFormData((p) => ({ ...p, region: val }));
+                    }}
+                    required
+                    disabled={isSubmitting || regions.length === 0 && !regionsError}
+                    className="w-full appearance-none px-4 py-2.5 pr-10 rounded-xl border-[1.5px] border-border-default bg-slate-50 text-base lg:text-sm text-navy-900 outline-none transition-all focus:border-navy-700 focus:bg-white cursor-pointer disabled:opacity-50"
+                  >
+                    <option value="" disabled>
+                      {regionsError ? '⚠ Failed to load regions' : regions.length === 0 ? 'Loading…' : '— Select region —'}
+                    </option>
+                    {regions.map((r) => (
+                      <option key={r.id} value={r.slug}>
+                        {r.slug}
+                      </option>
+                    ))}
+                    <option value="ADD_NEW">＋ Add new region…</option>
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 </div>
               )}
             </div>

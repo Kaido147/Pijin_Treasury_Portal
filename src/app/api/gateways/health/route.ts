@@ -60,6 +60,7 @@ export async function GET() {
           name: server.name,
           address: server.stellarPublicKey || 'N/A', // Using address field for pub key
           region: server.region,
+          regionSlug: '',
           status,
           uptime,
           balance,

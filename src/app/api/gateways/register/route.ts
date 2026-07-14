@@ -38,7 +38,14 @@ type StoredGatewayNode = {
     id: string;
     name: string;
     stellar_address: string;
-    region: string;
+    /** FK to regions.id — replaces the old denormalized region slug text */
+    region_id: string;
+    /**
+     * Joined from regions table via region_id FK.
+     * Supabase PostgREST returns FK joins as arrays even for many-to-one
+     * relations — we take the first element.
+     */
+    regions: Array<{ id: string; slug: string; name: string }> | null;
     status: NodeStatus | null;
     /** Cached XLM balance from the background sync worker. Null if never synced. */
     balance: number | null;
@@ -47,7 +54,9 @@ type StoredGatewayNode = {
 };
 
 /**
- * Maps a DB node row to the GatewayNode domain type.
+ * Maps a DB node row (with joined region) to the GatewayNode domain type.
+ * region     = human-readable name (e.g. "South East Asia 01").
+ * regionSlug = DB slug key (e.g. "SEA-01") — used for filtering/re-selection.
  * Balance is read from the cached DB column — never fetched live here.
  * Use the balance-sync service to keep this column fresh.
  */
@@ -58,11 +67,15 @@ function mapStoredNode(node: StoredGatewayNode): GatewayNode {
         ? node.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
         : '0.00';
 
+    // Supabase returns joined rows as an array — take the first element.
+    const regionRow = Array.isArray(node.regions) ? node.regions[0] : node.regions;
+
     return {
         id: node.id,
         name: node.name,
         address: node.stellar_address,
-        region: node.region,
+        region: regionRow?.name ?? regionRow?.slug ?? 'Unknown',
+        regionSlug: regionRow?.slug ?? node.region_id,
         status: node.status ?? 'syncing',
         uptime: '—',
         balance: formattedBalance,
@@ -265,10 +278,10 @@ export async function GET() {
     try {
         const supabase = createServiceClient();
 
-        // ── Query Read: include balance cache columns ──
+        // ── Query Read: JOIN regions for human-readable name ──
         const { data, error } = await supabase
             .from('nodes')
-            .select('id, name, stellar_address, region, status, balance, last_synced_at')
+            .select('id, name, stellar_address, region_id, regions(id, slug, name), status, balance, last_synced_at')
             .order('name', { ascending: true });
 
         if (error) {
@@ -276,7 +289,7 @@ export async function GET() {
             return NextResponse.json({ error: error.message }, { status: 500 });
         }
 
-        const rawNodes = (data ?? []) as StoredGatewayNode[];
+        const rawNodes = (data ?? []) as unknown as StoredGatewayNode[];
 
         // ── SWR Stale Check: find nodes that need a balance refresh ──
         const staleNodes = rawNodes.filter((n) => isBalanceStale(n.last_synced_at));
@@ -515,18 +528,35 @@ export async function PATCH(request: NextRequest) {
                 .eq('stellar_address', onChainGatewayAddress)
                 .maybeSingle();
 
+            // Resolve region_id from slug (body.region carries the slug value)
+            const regionSlug = body.region || 'UNKNOWN';
+            const { data: regionRow, error: regionErr } = await supabase
+                .from('regions')
+                .select('id')
+                .eq('slug', regionSlug)
+                .maybeSingle();
+
+            if (regionErr || !regionRow) {
+                return NextResponse.json(
+                    { error: `Region slug "${regionSlug}" not found in regions table.` },
+                    { status: 400 },
+                );
+            }
+
+            const resolvedRegionId = regionRow.id;
+
             let nodeError;
             if (existingNode) {
                 // Reactivation path
                 ({ error: nodeError } = await supabase
                     .from('nodes')
-                    .update({ status: 'active', name: body.name || 'Unknown', region: body.region || 'UNKNOWN' })
+                    .update({ status: 'active', name: body.name || 'Unknown', region_id: resolvedRegionId })
                     .eq('stellar_address', onChainGatewayAddress));
             } else {
                 // New registration path
                 ({ error: nodeError } = await supabase
                     .from('nodes')
-                    .insert({ stellar_address: onChainGatewayAddress, name: body.name || 'Unknown', region: body.region || 'UNKNOWN', status: 'active', registered_by: adminRecord.id }));
+                    .insert({ stellar_address: onChainGatewayAddress, name: body.name || 'Unknown', region_id: resolvedRegionId, status: 'active', registered_by: adminRecord.id }));
             }
 
             if (nodeError) {
