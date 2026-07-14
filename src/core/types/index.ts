@@ -54,7 +54,7 @@ export interface GatewayNode {
   balance: string;
 }
 
-// ─── Transactions ───────────────────────────────────────
+// ─── Transactions (legacy — wallet-centric view) ────────
 
 export type TxStatus = 'confirmed' | 'pending' | 'failed';
 export type TxType = 'debit' | 'credit';
@@ -69,6 +69,94 @@ export interface Transaction {
   memo: string;
   status: TxStatus;
   ts: Date;
+}
+
+// ─── Contract Events (contract-centric ledger) ──────────
+//
+// Mirrors the 5 event structs emitted by the deployed
+// PijinContract (contracts/src/lib.rs):
+//   deposit  → DepositEvent
+//   spend    → SpendEvent
+//   withdraw → WithdrawEvent
+//   recipient / recipupd → RecipientEvent
+
+export type ActivityType =
+  | 'spend'
+  | 'deposit'
+  | 'withdraw'
+  | 'register_recipient'
+  | 'update_recipient';
+
+/** Filter type used by useContractLedger */
+export type ActivityFilter = ActivityType | 'all';
+
+interface BaseActivity {
+  /** Globally unique event ID from Stellar RPC (e.g. "0001234-0") */
+  id: string;
+  /** Parent transaction hash */
+  txHash: string;
+  /** Ledger sequence number — used as pagination cursor */
+  ledger: number;
+  /** Discriminated union tag */
+  type: ActivityType;
+  /** ISO 8601 ledger close time */
+  timestamp: string;
+}
+
+/** Mirrors SpendEvent struct (lib.rs L68-79) */
+export interface SpendActivity extends BaseActivity {
+  type: 'spend';
+  sender: string;          // G... strkey
+  gateway: string;         // G... strkey (whitelisted relayer)
+  token: string;           // C... contract strkey
+  receiver: string;        // G... resolved wallet address
+  receiverShortId: string; // 6-byte Base62 display string
+  amount: string;          // Stroops as decimal string (i128)
+  protocolToll: string;    // Stroops as decimal string (i128)
+  nonce: string;           // Hex-encoded 32-byte nonce
+  balance: string;         // Sender remaining vault balance
+}
+
+/** Mirrors DepositEvent struct (lib.rs L59-65) */
+export interface DepositActivity extends BaseActivity {
+  type: 'deposit';
+  sender: string;
+  token: string;
+  amount: string;
+  balance: string;         // New vault balance after deposit
+}
+
+/** Mirrors WithdrawEvent struct (lib.rs L88-94) */
+export interface WithdrawActivity extends BaseActivity {
+  type: 'withdraw';
+  sender: string;
+  token: string;
+  amount: string;
+}
+
+/** Mirrors RecipientEvent struct (lib.rs L82-86) — used for both register + update */
+export interface RecipientActivity extends BaseActivity {
+  type: 'register_recipient' | 'update_recipient';
+  shortId: string;   // 6-byte Base62 decoded
+  receiver: string;  // G... strkey
+}
+
+/** Discriminated union of all contract event types */
+export type NetworkActivity =
+  | SpendActivity
+  | DepositActivity
+  | WithdrawActivity
+  | RecipientActivity;
+
+/** BFF API response from /api/ledger/events */
+export interface LedgerEventsResponse {
+  events: NetworkActivity[];
+  /** Opaque pagination cursor from Stellar RPC */
+  cursor: string;
+  latestLedger: number;
+  oldestLedger: number;
+  /** Whether more historical events exist before the current set */
+  hasMore: boolean;
 }
 
 // ─── System Metrics ─────────────────────────────────────

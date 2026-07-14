@@ -16,6 +16,11 @@ import {
   Activity,
   TrendingUp,
   Zap,
+  ArrowRightLeft,
+  Wallet,
+  LogOut,
+  UserPlus,
+  UserCog,
 } from 'lucide-react';
 import type { ElementType } from 'react';
 import type {
@@ -25,6 +30,7 @@ import type {
   StatusConfig,
   ServiceStatus,
   ServiceStatusConfig,
+  ActivityType,
 } from '@/core/types';
 
 // ─── Navigation ─────────────────────────────────────────
@@ -125,10 +131,10 @@ export const QUICK_AMOUNTS = ['100', '500', '1000', '5000'] as const;
 
 // ─── Polling & Refresh Intervals ────────────────────────
 
-/** Live ledger poll interval in milliseconds */
+/** Live ledger poll interval in milliseconds (RPC has no streaming — we poll) */
 export const LEDGER_POLL_INTERVAL_MS = 5000;
 
-/** Maximum transactions to keep in the ledger view */
+/** Maximum transactions to keep in the legacy ledger view */
 export const LEDGER_MAX_TRANSACTIONS = 40;
 
 /** Initial number of transactions to generate on page load */
@@ -136,3 +142,48 @@ export const LEDGER_INITIAL_COUNT = 12;
 
 /** Command Center auto-refresh interval in milliseconds */
 export const DASHBOARD_REFRESH_INTERVAL_MS = 30000;
+
+// ─── Contract Event Ledger ───────────────────────────────
+
+/** Poll interval for the contract event ledger (Stellar RPC has no SSE) */
+export const CONTRACT_EVENT_POLL_MS = 10_000;
+
+/** Number of events to fetch per page from /api/ledger/events */
+export const CONTRACT_EVENT_LIMIT = 50;
+
+/** Display config for each ActivityType in the contract event ledger */
+export const ACTIVITY_TYPE_CONFIG: Record<
+  ActivityType,
+  { label: string; icon: ElementType; textClass: string; bgClass: string }
+> = {
+  spend: {
+    label: 'Spend',
+    icon: ArrowRightLeft,
+    textClass: 'text-blue-600',
+    bgClass: 'bg-blue-100',
+  },
+  deposit: {
+    label: 'Deposit',
+    icon: Wallet,
+    textClass: 'text-green-600',
+    bgClass: 'bg-green-100',
+  },
+  withdraw: {
+    label: 'Withdraw',
+    icon: LogOut,
+    textClass: 'text-amber-600',
+    bgClass: 'bg-amber-100',
+  },
+  register_recipient: {
+    label: 'Register',
+    icon: UserPlus,
+    textClass: 'text-purple-600',
+    bgClass: 'bg-purple-100',
+  },
+  update_recipient: {
+    label: 'Update',
+    icon: UserCog,
+    textClass: 'text-indigo-600',
+    bgClass: 'bg-indigo-100',
+  },
+};

@@ -1,11 +1,13 @@
 // ═══════════════════════════════════════════════════════════
-// Hook: useTransactionLedger
+// Hook: useTransactionLedger  (DEPRECATED)
 //
-// Manages the transaction list, live polling, and filtering.
-// Generates mock transactions on a 5-second interval when
-// "live" mode is enabled — ready to swap to WebSocket or
-// Horizon streaming API for production.
+// This hook is superseded by useContractLedger, which fetches
+// Soroban smart contract events directly via the BFF API route
+// at /api/ledger/events using CONTRACT_ID from .env.local.
+//
+// This file is kept to avoid breaking any other consumers.
 // ═══════════════════════════════════════════════════════════
+
 
 'use client';
 
