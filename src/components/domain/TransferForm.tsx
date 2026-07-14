@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Send, CheckCircle2, Loader2, AlertCircle, ShieldCheck, KeyRound, ArrowLeft } from 'lucide-react';
+import { Send, CheckCircle2, Loader2, AlertCircle, ShieldCheck, KeyRound, ArrowLeft, Copy, Check } from 'lucide-react';
 import type { TransferFormState } from '@/core/types';
 import { QUICK_FILL_ADDRESSES, QUICK_AMOUNTS } from '@/core/constants';
 import { validateStellarAddress, cn } from '@/core/utils';
@@ -41,6 +41,13 @@ export function TransferForm({
   const [step, setStep] = useState<'form' | 'pin'>('form');
   const [pin, setPin] = useState('');
   const [localPinError, setLocalPinError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyAddress = () => {
+    navigator.clipboard.writeText(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   useEffect(() => {
     if (transferError) {
@@ -183,53 +190,72 @@ export function TransferForm({
           <button
             type="button"
             onClick={handleBack}
-            className="p-2 -ml-2 rounded-xl text-slate-500 hover:bg-slate-100 hover:text-navy-900 transition-all"
+            className="p-2 -ml-1 rounded-xl text-slate-500 hover:bg-slate-100 hover:text-navy-900 transition-all flex items-center justify-center"
             aria-label="Back to transfer details"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div>
-            <div className="text-navy-900 font-bold">Confirm Treasury Transfer</div>
-            <div className="text-slate-500 text-xs">
+          <div className="flex flex-col justify-center">
+            <div className="text-navy-900 font-bold leading-tight">Confirm Treasury Transfer</div>
+            <div className="text-slate-500 text-xs mt-0.5">
               Authorization required
             </div>
           </div>
         </div>
 
         <div className="px-8 py-7 space-y-6">
-          {/* Summary Card */}
-          <div className="rounded-2xl p-4 bg-surface space-y-3">
-            <div className="text-slate-500 text-[0.7rem] font-bold uppercase tracking-[0.08em] border-b border-border-default pb-2">
+          {/* Summary Area (direct on background, borderless rows) */}
+          <div className="space-y-4">
+            <div className="text-slate-600 text-[0.7rem] font-bold uppercase tracking-[0.08em] border-b border-slate-100 pb-2">
               Transfer Summary
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500">Destination Address</span>
-                <span className="font-mono text-navy-900 font-semibold truncate max-w-[200px]" title={address}>
-                  {address.slice(0, 8)}…{address.slice(-8)}
+                <span className="text-slate-600 font-medium">Destination Address</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-navy-900 font-semibold truncate max-w-[200px]" title={address}>
+                    {address.slice(0, 8)}…{address.slice(-8)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyAddress}
+                    className="p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-navy-900 transition-colors flex items-center justify-center"
+                    title="Copy address"
+                  >
+                    {copied ? (
+                      <Check className="w-3.5 h-3.5 text-green-600 animate-in zoom-in-50" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+              
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-600 font-medium">Amount</span>
+                <span className="font-mono text-navy-900 font-bold flex items-center gap-1">
+                  <span>{parseFloat(amount || '0').toLocaleString()}</span>
+                  <span className="text-[0.65rem] bg-navy-100 text-navy-900 px-1.5 py-0.5 rounded font-sans font-bold">XLM</span>
                 </span>
               </div>
+              
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500">Amount</span>
-                <span className="font-mono text-navy-900 font-bold">
-                  {parseFloat(amount || '0').toLocaleString()} XLM
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500">Network Fee</span>
+                <span className="text-slate-600 font-medium">Network Fee</span>
                 <span className="font-mono text-navy-900 font-semibold">
                   0.00001 XLM
                 </span>
               </div>
+              
               {memo && (
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500">Memo</span>
+                  <span className="text-slate-600 font-medium">Memo</span>
                   <span className="text-navy-950 font-medium truncate max-w-[200px]">
                     {memo}
                   </span>
                 </div>
               )}
-              <div className="flex justify-between items-center pt-2 border-t border-border-default">
+              
+              <div className="flex justify-between items-center pt-2.5 border-t border-slate-100">
                 <span className="text-navy-900 font-bold text-sm">
                   Total Deducted
                 </span>
@@ -240,16 +266,15 @@ export function TransferForm({
             </div>
           </div>
 
-          {/* Secure verification section */}
-          <div className="flex flex-col items-center gap-5 pt-2">
-            <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-navy-900/10">
-              <ShieldCheck className="w-6 h-6 text-navy-900" />
-            </div>
-
+          {/* Secure Verification Panel (housed in card at bottom) */}
+          <div className="rounded-2xl p-5 bg-slate-50/70 border border-slate-100/80 space-y-5 flex flex-col items-center">
             <div className="text-center space-y-1">
-              <h3 className="text-navy-900 font-bold text-sm">Enter Security PIN</h3>
-              <p className="text-slate-500 text-xs">
-                Enter your 6-digit treasury PIN to authorize this transfer.
+              <h3 className="text-navy-900 font-bold text-sm flex items-center justify-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-navy-950" />
+                Enter Security PIN
+              </h3>
+              <p className="text-slate-600 text-xs max-w-[280px] mx-auto leading-relaxed">
+                Enter your 6-digit PIN to authorize. The transfer will submit automatically once complete.
               </p>
             </div>
 
@@ -335,8 +360,8 @@ export function TransferForm({
               prefilledAddress
                 ? 'border-border-default bg-slate-100 text-slate-500 cursor-not-allowed'
                 : addressError
-                ? 'border-red-600 bg-slate-50'
-                : 'border-border-default bg-slate-50 focus:border-navy-700 focus:bg-white',
+                  ? 'border-red-600 bg-slate-50'
+                  : 'border-border-default bg-slate-50 focus:border-navy-700 focus:bg-white',
             )}
           />
           {addressError && (
@@ -496,17 +521,17 @@ function PinSlot({ slot }: { slot: { char: string | null; isActive: boolean; has
   return (
     <div
       className={cn(
-        'w-11 h-14 flex items-center justify-center rounded-xl border-2 text-xl font-bold text-navy-900 transition-all select-none',
+        'w-12 h-12 flex items-center justify-center rounded-2xl border-2 text-xl font-bold text-navy-900 transition-all select-none',
         slot.isActive
-          ? 'border-navy-900 bg-navy-900/5 shadow-sm'
-          : 'border-slate-200 bg-white',
+          ? 'border-navy-900 bg-navy-900/5 shadow-sm ring-2 ring-navy-900/10'
+          : 'border-slate-200 bg-white hover:border-slate-300',
       )}
     >
       {slot.hasFakeCaret ? (
         <span className="w-0.5 h-5 bg-navy-900 animate-pulse rounded-full" />
-      ) : (
-        slot.char ? '●' : null
-      )}
+      ) : slot.char ? (
+        <div className="w-2.5 h-2.5 rounded-full bg-navy-900 animate-in zoom-in duration-100" />
+      ) : null}
     </div>
   );
 }

@@ -23,11 +23,11 @@ import {
 // ─── Failure-Code Toast Title Map ───────────────────────
 
 const FAILURE_TITLES: Record<RegistryFailureCode, string> = {
-  RELAYER_UNFUNDED:    'Relayer Unfunded',
+  RELAYER_UNFUNDED: 'Relayer Unfunded',
   RESOURCE_EXHAUSTION: 'Resource Limit Exceeded',
-  STATE_COLLISION:     'Gateway Already Registered',
-  AUTH_FAILED:         'Authentication Failed',
-  UNKNOWN:             'Operation Failed',
+  STATE_COLLISION: 'Gateway Already Registered',
+  AUTH_FAILED: 'Authentication Failed',
+  UNKNOWN: 'Operation Failed',
 };
 
 type TabId = 'ACTIVE' | 'REVOKED';
