@@ -34,13 +34,14 @@ function mapStoredNode(node: StoredGatewayNode): GatewayNode {
         id: node.id,
         name: node.name,
         address: node.stellar_address,
-        region_id: node.region_id,
+        regionSlug: node.region_id,
         status: node.status ?? 'syncing',
         uptime: '—',
         balance: '0.00',
     };
 }
 
+// Safe JSON Responses
 function toJsonSafe(value: unknown): unknown {
     if (typeof value === 'bigint') return value.toString();
     if (Array.isArray(value)) return value.map(toJsonSafe);
@@ -55,6 +56,7 @@ function toJsonSafe(value: unknown): unknown {
     return value;
 }
 
+// Formatting Simulation Events
 function formatSimulationEvents(events: rpc.Api.SimulateTransactionErrorResponse['events']) {
     if (!events?.length) return [];
 
@@ -68,18 +70,7 @@ function formatSimulationEvents(events: rpc.Api.SimulateTransactionErrorResponse
     }
 }
 
-// ═══════════════════════════════════════════════════════════
-// Dual-Gate Authentication Helper
-// ═══════════════════════════════════════════════════════════
-
-/**
- * Verifies BOTH security gates for mutating API operations.
- *
- * Gate 1: Supabase Auth session (sb-access-token cookie)
- * Gate 2: Stellar wallet JWT (admin_session cookie)
- *
- * Returns adminAddress on success, or NextResponse error on failure.
- */
+// Verify Dual Gates
 async function verifyDualGates() {
     // ── GATE 1: Supabase Identity Check ──
     const userClient = await createClient();
@@ -94,7 +85,7 @@ async function verifyDualGates() {
         };
     }
 
-    // ── GATE 2: Stellar Wallet JWT Check ──
+    // Stellar Wallet JWT Check
     const cookieStore = await cookies();
     const token = cookieStore.get('admin_session')?.value;
 
@@ -120,10 +111,7 @@ async function verifyDualGates() {
     return { adminAddress };
 }
 
-// ═══════════════════════════════════════════════════════════
-// POST — Build unsigned register_gateway XDR for client signing
-// ═══════════════════════════════════════════════════════════
-
+// POST Request
 export async function POST(request: Request) {
     try {
         const supabase = await createServiceClient();
@@ -220,10 +208,7 @@ export async function POST(request: Request) {
     }
 }
 
-// ═══════════════════════════════════════════════════════════
-// GET — List all registered gateway nodes
-// ═══════════════════════════════════════════════════════════
-
+// GET Request
 export async function GET() {
     try {
         const supabase = await createServiceClient();
@@ -247,10 +232,7 @@ export async function GET() {
     }
 }
 
-// ═══════════════════════════════════════════════════════════
-// DELETE — Build unsigned remove_gateway XDR for client signing
-// ═══════════════════════════════════════════════════════════
-
+// DELETE Request
 export async function DELETE(request: NextRequest) {
     try {
         // Dual-gate auth
@@ -270,6 +252,7 @@ export async function DELETE(request: NextRequest) {
             );
         }
 
+        // Use the SorobanConfig helper
         const { server, contractId, networkPassphrase } = getSorobanConfig();
 
         let adminKeyPair: Address;
@@ -322,23 +305,7 @@ export async function DELETE(request: NextRequest) {
     }
 }
 
-// ═══════════════════════════════════════════════════════════
-// PATCH — Verification Oracle: on-chain confirm → then DB sync
-// ═══════════════════════════════════════════════════════════
-
-/**
- * Security-critical verification oracle.
- *
- * Fetches the transaction from the Soroban ledger and verifies:
- *   Gate A — TX status is SUCCESS on-chain
- *   Gate B — Operation is invokeHostFunction (invokeContract variant)
- *   Gate C — Contract address matches our deployed CONTRACT_ID
- *   Gate D — Function name matches the requested action
- *   Gate E — Gateway address extracted from on-chain TX args
- *
- * The stellar_address used for DB writes is sourced from the
- * on-chain TX envelope ONLY — never trusted from the client body.
- */
+// PATCH Request
 export async function PATCH(request: NextRequest) {
     try {
         const supabase = await createServiceClient();
@@ -359,6 +326,7 @@ export async function PATCH(request: NextRequest) {
             return NextResponse.json({ error: 'txHash and action are required' }, { status: 400 });
         }
 
+        // Use SorobanConfig Helper Function
         const { server, contractId, } = getSorobanConfig();
 
         // ── Gate A: Fetch TX from Soroban ledger ──

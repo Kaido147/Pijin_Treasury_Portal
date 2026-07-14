@@ -25,9 +25,7 @@ async function mapHorizonTxToDomain(rawTx: any, accountId: string): Promise<Tran
 
   try {
     // Fetch operations to find the actual amount/to/from
-    // Horizon returns templated URIs (RFC 6570), e.g., .../operations{?cursor,limit,order}
-    const opsUrl = rawTx._links.operations.href.split('{')[0];
-    const opsRes = await fetch(opsUrl);
+    const opsRes = await fetch(`${rawTx._links.operations.href}`);
     if (opsRes.ok) {
       const opsData = await opsRes.json();
       const records = opsData._embedded?.records || [];
@@ -103,6 +101,9 @@ export async function fetchStellarBalance(publicKey: string, signal?: AbortSigna
 
     return '0.00';
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw error;
+    }
     console.error(`Error fetching balance for ${publicKey}:`, error);
     return '0.00';
   }

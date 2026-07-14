@@ -10,6 +10,7 @@ import { RegisterNodeForm } from "@/components/domain/RegisterNodeForm";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { cn } from "@/core/utils";
 import { useTransfer } from "@/hooks/useTransfer";
+import { useStellarWallet } from "@/hooks/useStellarWallet";
 import { TransferForm } from "@/components/domain/TransferForm";
 import {
   Dialog,
@@ -22,11 +23,11 @@ import {
 // ─── Failure-Code Toast Title Map ───────────────────────
 
 const FAILURE_TITLES: Record<RegistryFailureCode, string> = {
-  RELAYER_UNFUNDED:    'Relayer Unfunded',
+  RELAYER_UNFUNDED: 'Relayer Unfunded',
   RESOURCE_EXHAUSTION: 'Resource Limit Exceeded',
-  STATE_COLLISION:     'Gateway Already Registered',
-  AUTH_FAILED:         'Authentication Failed',
-  UNKNOWN:             'Operation Failed',
+  STATE_COLLISION: 'Gateway Already Registered',
+  AUTH_FAILED: 'Authentication Failed',
+  UNKNOWN: 'Operation Failed',
 };
 
 type TabId = 'ACTIVE' | 'REVOKED';
@@ -43,32 +44,40 @@ export default function GatewayOpsPage() {
     isSuccess,
     isLoading,
     loadError,
+    fetchNodes,
   } = useGatewayNodes();
 
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('ACTIVE');
   const [prefillAddress, setPrefillAddress] = useState<string | undefined>(undefined);
 
-  // Fund-node modal state
-  const [fundDialogOpen, setFundDiaglogOpen] = useState<boolean>(false);
-  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
-  const { formState, txHash, submitTransfer, resetTransfer } = useTransfer();
+  // Wallet gate — toast if not connected
+  const { isConnected } = useStellarWallet();
 
-  // Whether ANY revoke TX is in-flight (covers all active states)
-  const isRevoking =
-    txState.status === 'BROADCASTING' ||
-    txState.status === 'AWAITING_SIGNATURE' ||
-    txState.status === 'ON_CHAIN_MINING';
+  const handleRegisterClick = (): void => {
+    if (!isConnected) {
+      toast.error('Wallet Not Connected', {
+        description: 'Connect your Freighter wallet before registering a node.',
+      });
+      return;
+    }
+    setShowRegisterForm(true);
+  };
 
-  // Event-driven: capture addNode return; fire toast immediately on failure
-  const handleRegistration = async (data: { name: string; address: string; region: string }) => {
+  // ─── Gateway Registration — pure Web3 flow ──────────
+  // Form submits → addNode → Freighter signs XDR → on-chain.
+  // No PIN involved. PIN belongs exclusively in the funding flow.
+
+  const handleRegistration = async (data: { name: string; address: string; region: string }): Promise<void> => {
     const result = await addNode(data);
     if (result?.status === 'FAILED') {
       toast.error(
         FAILURE_TITLES[result.failureCode ?? 'UNKNOWN'],
         { description: result.failureMessage ?? undefined },
       );
+      return;
     }
+    // SUCCESS is handled by txState transitions in RegisterNodeForm
   };
 
   const handleRevoke = async (address: string) => {
@@ -84,27 +93,72 @@ export default function GatewayOpsPage() {
     }
   };
 
+  // ─── Fund Node — Web2.5 flow ─────────────────────────
+  // Form manages multi-step flow internally. On pin confirmation,
+  // it invokes submitTransfer to POST to /api/treasury/fund.
+
+  const [fundDialogOpen, setFundDialogOpen] = useState<boolean>(false);
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
+  const { formState, txHash, submitTransfer, resetTransfer, transferError } = useTransfer();
+
+  // ─── Funding Submit Wrapper ────────────────────────────
+  // Binds fetchNodes as the onConfirmed callback so the dashboard
+  // automatically refetches node balances the moment the transaction
+  // is confirmed on-chain — guaranteed, no race condition.
+  const handleSubmitTransfer = (data: {
+    address: string;
+    amount: string;
+    memo: string;
+    pin: string;
+  }) => submitTransfer({ ...data, onConfirmed: () => fetchNodes(false) });
+
   const handleFundClick = (address: string): void => {
+    if (!isConnected) {
+      toast.error('Wallet Not Connected', {
+        description: 'Connect your Freighter wallet before funding a gateway node.',
+      });
+      return;
+    }
     setSelectedAddress(address);
-    setFundDiaglogOpen(true);
+    setFundDialogOpen(true);
   };
 
   const handleReauthorize = (address: string): void => {
+    if (!isConnected) {
+      toast.error('Wallet Not Connected', {
+        description: 'Connect your Freighter wallet before re-authorizing a node.',
+      });
+      return;
+    }
     setPrefillAddress(address);
     setShowRegisterForm(true);
   };
 
   const handleDialogClose = (open: boolean): void => {
-    setFundDiaglogOpen(open);
+    setFundDialogOpen(open);
     if (!open) {
-      // Reset Form state when dialog is dismissed
+      // Reset form state when dialog is dismissed
       resetTransfer();
       setSelectedAddress(null);
     }
   };
 
+  const handleRegisterDialogClose = (open: boolean): void => {
+    setShowRegisterForm(open);
+    if (!open) {
+      // Clear prefill so stale address never leaks into next open
+      setPrefillAddress(undefined);
+    }
+  };
+
   // Nodes to render for current tab
   const displayedNodes = activeTab === 'ACTIVE' ? activeNodes : revokedNodes;
+
+  // Whether ANY revoke TX is in-flight (covers all active states)
+  const isRevoking =
+    txState.status === 'BROADCASTING' ||
+    txState.status === 'AWAITING_SIGNATURE' ||
+    txState.status === 'ON_CHAIN_MINING';
 
   const tabs: { id: TabId; label: string; count: number }[] = [
     { id: 'ACTIVE', label: 'Active', count: activeNodes.length },
@@ -126,32 +180,36 @@ export default function GatewayOpsPage() {
           </p>
         </div>
 
-        {/* Toggle Button */}
+        {/* Register Node Button */}
         <button
-          onClick={() => setShowRegisterForm((prev) => !prev)}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2.5 lg:py-2 rounded-full text-sm font-semibold transition-all h-11 lg:h-auto",
-            showRegisterForm
-              ? "bg-slate-100 border border-border-default text-slate-700 hover:bg-slate-200"
-              : "bg-navy-900 text-white hover:bg-navy-800 shadow-md",
-          )}
+          id="register-node-btn"
+          onClick={handleRegisterClick}
+          className="flex items-center gap-2 px-4 py-2.5 lg:py-2 rounded-full text-sm font-semibold transition-all h-11 lg:h-auto bg-navy-900 text-white hover:bg-navy-800 shadow-md"
         >
           <Plus className="w-4 h-4" />
           Register Node
         </button>
       </div>
 
-      {/* Conditional Registration Form (Spans full width when visible) */}
-      {showRegisterForm && (
-        <RegisterNodeForm
-          onSubmit={handleRegistration}
-          isSubmitting={isSubmitting}
-          isSuccess={isSuccess}
-          txState={txState}
-          revokedNodes={revokedNodes}
-          prefillAddress={prefillAddress}
-        />
-      )}
+      {/* Register Node Dialog */}
+      <Dialog open={showRegisterForm} onOpenChange={handleRegisterDialogClose}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl p-0 overflow-hidden rounded-3xl border-0">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Register Gateway Node</DialogTitle>
+            <DialogDescription>
+              Add a new agent node or re-authorize a previously revoked node on the Soroban network.
+            </DialogDescription>
+          </DialogHeader>
+          <RegisterNodeForm
+            onSubmit={handleRegistration}
+            isSubmitting={isSubmitting}
+            isSuccess={isSuccess}
+            txState={txState}
+            revokedNodes={revokedNodes}
+            prefillAddress={prefillAddress}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Error State — Load */}
       {loadError && (
@@ -226,14 +284,15 @@ export default function GatewayOpsPage() {
           <DialogHeader className="sr-only">
             <DialogTitle>Fund Gateway Node</DialogTitle>
             <DialogDescription>
-              Send XLM directly to the selected gateway node address.
+              Send XLM directly to the selected gateway node address via the treasury hot wallet.
             </DialogDescription>
           </DialogHeader>
           {selectedAddress !== null && (
             <TransferForm
               formState={formState}
               txHash={txHash}
-              onSubmit={submitTransfer}
+              transferError={transferError}
+              onSubmit={handleSubmitTransfer}
               onReset={resetTransfer}
               prefilledAddress={selectedAddress}
             />

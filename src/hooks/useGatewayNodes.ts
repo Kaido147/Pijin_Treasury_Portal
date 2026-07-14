@@ -84,6 +84,12 @@ export interface UseGatewayNodesReturn {
   loadError: string | null;
   /** Derived — backward compat alias for txState.failureMessage */
   submitError: string | null;
+  /**
+   * Manually trigger a node list refresh.
+   * Used by gateway-ops page after a confirmed funding transaction
+   * to update balances without waiting for the next 30-second poll.
+   */
+  fetchNodes: (initialLoad?: boolean) => Promise<void>;
 }
 
 // ─── Error Classification ───────────────────────────────
@@ -585,5 +591,6 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
     isLoading,
     loadError,
     submitError,
+    fetchNodes,
   };
 }

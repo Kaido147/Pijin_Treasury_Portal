@@ -102,7 +102,7 @@ export function GatewayNodeCard({
             id={`reauthorize-node-btn-${node.id}`}
             type="button"
             onClick={() => onReauthorize(node.address)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-xs font-semibold px-4 py-2 transition-all"
+            className="bg-reactivate hover:bg-reactivate-hover text-white dark:text-navy-950 rounded-full text-xs font-semibold px-4 py-2 transition-all"
           >
             Re-authorize Node
           </button>

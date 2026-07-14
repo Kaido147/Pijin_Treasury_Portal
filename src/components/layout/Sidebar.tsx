@@ -14,7 +14,7 @@ interface SidebarProps {
 export function Sidebar({ isOpen }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { disconnect } = useStellarWallet();
+  const { logout } = useStellarWallet();
 
   const isActive = (href: string, exact: boolean) =>
     exact ? pathname === href : pathname.startsWith(href);
@@ -89,15 +89,15 @@ export function Sidebar({ isOpen }: SidebarProps) {
       {/* Footer */}
       <div className="px-3 py-4 border-t border-white/[0.07]">
         <button
-          id="disconnect-wallet-btn"
+          id="logout-btn"
           onClick={async () => {
-            await disconnect();
+            await logout();
             router.push('/');
           }}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-150 bg-transparent hover:bg-white/[0.07]"
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-150 bg-transparent text-white/35 hover:bg-white/[0.07] hover:text-white"
         >
-          <LogOut className="w-4 h-4 text-white/35" />
-          <span className="text-white/35 text-sm">Disconnect Wallet</span>
+          <LogOut className="w-4 h-4 shrink-0" />
+          <span className="text-sm font-medium">Log Out</span>
         </button>
         <div className="mt-3 px-3 text-white/20 text-[0.65rem] font-mono">
           © 2026 Pijin Network

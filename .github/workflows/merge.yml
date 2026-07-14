@@ -1,0 +1,23 @@
+name: Sync Main to Workspace Branch
+on:
+  push:
+    branches:
+      - main
+jobs:
+  merge-on-workspace:
+    runs-on: ubuntu-latest
+    permissions: 
+      contents: write
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/pipelines
+          fetch-depth: 0
+      - name: Configure Git
+        run: |
+          git config user.name ${{ github.actor }}
+          git config user.email ${{ github.actor }}@github.com
+      - name: Merge Main to feat/pipelines
+        run: |
+          git fetch origin main
