@@ -13,7 +13,8 @@ export interface WalletState {
   balance: number;
   network: 'testnet' | 'mainnet';
   connect: () => void;
-  disconnect: () => void;
+  disconnect: () => Promise<void>;
+  logout: () => Promise<void>;
   signTransaction: (xdr: string, opts?: { networkPassphrase?: string; address?: string }) => Promise<string>;
 }
 
@@ -44,7 +45,10 @@ export interface GatewayNode {
   id: string;
   name: string;
   address: string;
+  /** Human-readable region name resolved by API JOIN (e.g. "South East Asia 01") */
   region: string;
+  /** Slug key stored in DB (e.g. "SEA-01") — use for filtering, URL params, dropdown re-selection */
+  regionSlug: string;
   status: NodeStatus;
   uptime: string;
   balance: string;

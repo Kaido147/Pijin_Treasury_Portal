@@ -4,11 +4,15 @@ import { truncateAddress } from '@/core/utils';
 interface WalletBalanceCardProps {
   walletInfo: WalletInfo;
   isConnected: boolean;
+  isLoading?: boolean;
+  error?: string | null;
 }
 
 export function WalletBalanceCard({
   walletInfo,
   isConnected,
+  isLoading = false,
+  error = null,
 }: WalletBalanceCardProps) {
   return (
     <div className="rounded-3xl overflow-hidden relative bg-gradient-to-br from-navy-900 via-navy-700 to-blue-700 shadow-hero">
@@ -21,7 +25,7 @@ export function WalletBalanceCard({
         <div className="flex items-start justify-between mb-8">
           <div>
             <div className="text-white/50 text-[0.7rem] font-bold tracking-widest uppercase mb-1">
-              Admin Wallet · Stellar Testnet
+              Treasury Core Balance · Stellar Testnet
             </div>
             <div className="text-white/45 text-[0.68rem] font-mono tracking-[0.04em]">
               {truncateAddress(walletInfo.address, 14, 8)}
@@ -36,13 +40,25 @@ export function WalletBalanceCard({
         </div>
 
         {/* Balance */}
-        <div className="mb-6">
-          <div className="font-mono font-bold text-5xl text-white leading-none tracking-tight">
-            {walletInfo.balancePhp}
-          </div>
-          <div className="text-white/40 text-[0.85rem] mt-2">
-            {walletInfo.balanceXlm} XLM
-          </div>
+        <div className="mb-6 min-h-[72px] flex flex-col justify-center">
+          {isLoading ? (
+            <div className="font-mono font-bold text-3xl text-white/75 leading-none tracking-tight animate-pulse">
+              Syncing...
+            </div>
+          ) : error ? (
+            <div className="text-red-400 font-medium text-sm">
+              Failed to sync treasury balance
+            </div>
+          ) : (
+            <>
+              <div className="font-mono font-bold text-5xl text-white leading-none tracking-tight">
+                {walletInfo.balancePhp}
+              </div>
+              <div className="text-white/40 text-[0.85rem] mt-2">
+                {walletInfo.balanceXlm} XLM
+              </div>
+            </>
+          )}
         </div>
 
         {/* Stats footer */}

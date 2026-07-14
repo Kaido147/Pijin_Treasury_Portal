@@ -111,7 +111,21 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setBalance(0);
       setIsConnected(false);
       localStorage.removeItem('admin_session');
-      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => { }); // Automatically signs out when the sign message is decline
+      await fetch('/api/auth/disconnect', { method: 'POST' }).catch(() => { });
+    } finally {
+      setIsConnecting(false);
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
+    setIsConnecting(true);
+    try {
+      await stellarKitAdapter.disconnect();
+      setPublicKey(null);
+      setBalance(0);
+      setIsConnected(false);
+      localStorage.removeItem('admin_session');
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => { });
     } finally {
       setIsConnecting(false);
     }
@@ -126,7 +140,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <WalletContext.Provider
-      value={{ isConnected, isConnecting, publicKey, balance, network, connect, disconnect, signTransaction }}
+      value={{ isConnected, isConnecting, publicKey, balance, network, connect, disconnect, logout, signTransaction }}
     >
       {children}
     </WalletContext.Provider>

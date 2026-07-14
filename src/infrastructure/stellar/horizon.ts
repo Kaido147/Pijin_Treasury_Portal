@@ -103,6 +103,9 @@ export async function fetchStellarBalance(publicKey: string, signal?: AbortSigna
 
     return '0.00';
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw error;
+    }
     console.error(`Error fetching balance for ${publicKey}:`, error);
     return '0.00';
   }

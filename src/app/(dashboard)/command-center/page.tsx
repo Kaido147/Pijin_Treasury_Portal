@@ -4,6 +4,7 @@ import { RefreshCw } from "lucide-react";
 import { useNetworkHealth } from "@/hooks/useNetworkHealth";
 import { useGatewayNodes } from "@/hooks/useGatewayNodes";
 import { useStellarWallet } from "@/hooks/useStellarWallet";
+import { useTreasuryBalance } from "@/hooks/useTreasuryBalance";
 import { STAT_ICON_MAP, XLM_TO_PHP_RATE } from "@/core/constants";
 import { StatCard } from "@/components/domain/StatCard";
 import { WalletBalanceCard } from "@/components/domain/WalletBalanceCard";
@@ -25,14 +26,16 @@ export default function CommandCenterPage() {
       : m,
   );
 
-  const { isConnected, publicKey, balance } = useStellarWallet();
+  const { isConnected } = useStellarWallet();
+  const { balance: treasuryBalanceStr, isLoading, error } = useTreasuryBalance();
 
-  const phpValue = balance * XLM_TO_PHP_RATE;
+  const balanceNum = parseFloat(treasuryBalanceStr.replace(/,/g, '')) || 0;
+  const phpValue = balanceNum * XLM_TO_PHP_RATE;
 
   const liveWalletInfo: WalletInfo = {
-    address: publicKey ?? '—',
+    address: process.env.NEXT_PUBLIC_TREASURY_ADDRESS ?? '—',
     balancePhp: `₱${phpValue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    balanceXlm: balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    balanceXlm: treasuryBalanceStr || '0.00',
     change24h: '—',
     fundedNodes: '—',
     totalDistributed: '—',
@@ -62,7 +65,12 @@ export default function CommandCenterPage() {
         </button>
       </div>
 
-      <WalletBalanceCard walletInfo={liveWalletInfo} isConnected={isConnected} />
+      <WalletBalanceCard
+        walletInfo={liveWalletInfo}
+        isConnected={isConnected}
+        isLoading={isLoading}
+        error={error}
+      />
 
       {/* KPI stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
