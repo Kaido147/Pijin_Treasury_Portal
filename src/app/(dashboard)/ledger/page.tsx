@@ -6,6 +6,7 @@ import { useContractLedger } from "@/hooks/useContractLedger";
 import { ActivityRow } from "@/components/domain/ActivityRow";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { cn } from "@/core/utils";
+import { CONTRACT_TOKEN_CONFIG } from "@/core/constants";
 import type { ActivityFilter } from "@/core/types";
 
 // ─── Filter options ──────────────────────────────────────
@@ -52,17 +53,19 @@ function KpiCard({
   );
 }
 
-// ─── Stroke-to-XLM format helper (display only) ─────────
+// ─── Raw token amount format helper (display only) ──────
 
-function stroopsToXlmDisplay(stroops: string): string {
+function formatTokenDisplay(raw: string): string {
   try {
-    const v = BigInt(stroops);
-    const xlm = Number(v) / 10_000_000;
-    if (xlm >= 1_000_000) return `${(xlm / 1_000_000).toFixed(2)}M XLM`;
-    if (xlm >= 1_000)     return `${(xlm / 1_000).toFixed(2)}K XLM`;
-    return `${xlm.toFixed(2)} XLM`;
+    const v = BigInt(raw);
+    const divisor = Math.pow(10, CONTRACT_TOKEN_CONFIG.DECIMALS);
+    const amount = Number(v) / divisor;
+    const sym = CONTRACT_TOKEN_CONFIG.SYMBOL;
+    if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(2)}M ${sym}`;
+    if (amount >= 1_000)     return `${(amount / 1_000).toFixed(2)}K ${sym}`;
+    return `${amount.toFixed(2)} ${sym}`;
   } catch {
-    return `${stroops} stroops`;
+    return `${raw} raw`;
   }
 }
 
@@ -168,14 +171,14 @@ export default function LedgerPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <KpiCard
           label="Total Network Volume"
-          value={stroopsToXlmDisplay(summary.totalVolume)}
+          value={formatTokenDisplay(summary.totalVolume)}
           icon={TrendingUp}
           colorClass="text-green-600"
           bgClass="bg-green-100"
         />
         <KpiCard
           label="Total Tolls Collected"
-          value={stroopsToXlmDisplay(summary.totalTolls)}
+          value={formatTokenDisplay(summary.totalTolls)}
           icon={Zap}
           colorClass="text-blue-600"
           bgClass="bg-blue-100"

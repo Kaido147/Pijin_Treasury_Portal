@@ -143,6 +143,14 @@ export const LEDGER_INITIAL_COUNT = 12;
 /** Command Center auto-refresh interval in milliseconds */
 export const DASHBOARD_REFRESH_INTERVAL_MS = 30000;
 
+// ─── Contract Token / Currency Configuration ────────────
+/** Configuration for the primary token used by the Soroban smart contract (PHP Fiat) */
+export const CONTRACT_TOKEN_CONFIG = {
+  SYMBOL: 'PHP',
+  /** Soroban / Stellar token decimals (defaulting to 7 raw units per 1 PHP; can be changed to 2 if token uses 2 decimals) */
+  DECIMALS: 7,
+} as const;
+
 // ─── Contract Event Ledger ───────────────────────────────
 
 /** Poll interval for the contract event ledger (Stellar RPC has no SSE) */

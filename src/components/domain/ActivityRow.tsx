@@ -8,23 +8,24 @@ import type {
   WithdrawActivity,
   RecipientActivity,
 } from '@/core/types';
-import { ACTIVITY_TYPE_CONFIG } from '@/core/constants';
+import { ACTIVITY_TYPE_CONFIG, CONTRACT_TOKEN_CONFIG } from '@/core/constants';
 import { truncateAddress, formatTime, formatDate } from '@/core/utils';
 import { cn } from '@/core/utils';
 
 // ─── Formatting helpers ──────────────────────────────────
 
-/** Convert stroops (i128 as decimal string) to a human-readable XLM amount */
-function stroopsToXlm(stroops: string): string {
+/** Convert raw contract token units (i128 as decimal string) to human-readable amount */
+function formatContractAmount(raw: string): string {
   try {
-    const value = BigInt(stroops);
-    const xlm   = Number(value) / 10_000_000;
-    return xlm.toLocaleString('en-US', {
+    const value = BigInt(raw);
+    const divisor = Math.pow(10, CONTRACT_TOKEN_CONFIG.DECIMALS);
+    const amount  = Number(value) / divisor;
+    return amount.toLocaleString('en-US', {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 7,
+      maximumFractionDigits: CONTRACT_TOKEN_CONFIG.DECIMALS,
     });
   } catch {
-    return stroops;
+    return raw;
   }
 }
 
@@ -73,7 +74,7 @@ function SpendSummary({ a }: { a: SpendActivity }) {
         <span className="font-bold text-blue-700">{a.receiverShortId}</span>
       </div>
       <div className="text-slate-400 text-[0.68rem] truncate">
-        {stroopsToXlm(a.amount)} XLM · toll {stroopsToXlm(a.protocolToll)} XLM · {formatDate(new Date(a.timestamp))} {formatTime(new Date(a.timestamp))}
+        {formatContractAmount(a.amount)} {CONTRACT_TOKEN_CONFIG.SYMBOL} · toll {formatContractAmount(a.protocolToll)} {CONTRACT_TOKEN_CONFIG.SYMBOL} · {formatDate(new Date(a.timestamp))} {formatTime(new Date(a.timestamp))}
       </div>
     </div>
   );
@@ -87,9 +88,9 @@ function SpendDetail({ a }: { a: SpendActivity }) {
       <DetailField label="Short ID"         value={a.receiverShortId}    mono />
       <DetailField label="Gateway"          value={a.gateway}            mono />
       <DetailField label="Token"            value={a.token}              mono />
-      <DetailField label="Amount"           value={`${stroopsToXlm(a.amount)} XLM`} />
-      <DetailField label="Protocol Toll"    value={`${stroopsToXlm(a.protocolToll)} XLM`} />
-      <DetailField label="Remaining Balance" value={`${stroopsToXlm(a.balance)} XLM`} />
+      <DetailField label="Amount"           value={`${formatContractAmount(a.amount)} ${CONTRACT_TOKEN_CONFIG.SYMBOL}`} />
+      <DetailField label="Protocol Toll"    value={`${formatContractAmount(a.protocolToll)} ${CONTRACT_TOKEN_CONFIG.SYMBOL}`} />
+      <DetailField label="Remaining Balance" value={`${formatContractAmount(a.balance)} ${CONTRACT_TOKEN_CONFIG.SYMBOL}`} />
       <DetailField label="Nonce"            value={shortenHex(a.nonce)}  mono />
     </div>
   );
@@ -99,7 +100,7 @@ function DepositSummary({ a }: { a: DepositActivity }) {
   return (
     <div className="flex flex-col gap-0.5 min-w-0">
       <div className="font-mono text-[0.72rem] text-navy-900 font-medium truncate">
-        {truncateAddress(a.sender)} deposited {stroopsToXlm(a.amount)} XLM
+        {truncateAddress(a.sender)} deposited {formatContractAmount(a.amount)} {CONTRACT_TOKEN_CONFIG.SYMBOL}
       </div>
       <div className="text-slate-400 text-[0.68rem]">
         {formatDate(new Date(a.timestamp))} {formatTime(new Date(a.timestamp))}
@@ -113,8 +114,8 @@ function DepositDetail({ a }: { a: DepositActivity }) {
     <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
       <DetailField label="Sender"      value={a.sender}                       mono />
       <DetailField label="Token"       value={a.token}                        mono />
-      <DetailField label="Amount"      value={`${stroopsToXlm(a.amount)} XLM`} />
-      <DetailField label="New Balance" value={`${stroopsToXlm(a.balance)} XLM`} />
+      <DetailField label="Amount"      value={`${formatContractAmount(a.amount)} ${CONTRACT_TOKEN_CONFIG.SYMBOL}`} />
+      <DetailField label="New Balance" value={`${formatContractAmount(a.balance)} ${CONTRACT_TOKEN_CONFIG.SYMBOL}`} />
     </div>
   );
 }
@@ -123,7 +124,7 @@ function WithdrawSummary({ a }: { a: WithdrawActivity }) {
   return (
     <div className="flex flex-col gap-0.5 min-w-0">
       <div className="font-mono text-[0.72rem] text-navy-900 font-medium truncate">
-        {truncateAddress(a.sender)} withdrew {stroopsToXlm(a.amount)} XLM
+        {truncateAddress(a.sender)} withdrew {formatContractAmount(a.amount)} {CONTRACT_TOKEN_CONFIG.SYMBOL}
       </div>
       <div className="text-slate-400 text-[0.68rem]">
         {formatDate(new Date(a.timestamp))} {formatTime(new Date(a.timestamp))}
@@ -137,7 +138,7 @@ function WithdrawDetail({ a }: { a: WithdrawActivity }) {
     <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
       <DetailField label="Sender" value={a.sender}                       mono />
       <DetailField label="Token"  value={a.token}                        mono />
-      <DetailField label="Amount" value={`${stroopsToXlm(a.amount)} XLM`} />
+      <DetailField label="Amount" value={`${formatContractAmount(a.amount)} ${CONTRACT_TOKEN_CONFIG.SYMBOL}`} />
     </div>
   );
 }
@@ -175,19 +176,19 @@ function AmountBadge({ activity }: { activity: NetworkActivity }) {
     case 'spend':
       return (
         <div className="font-mono text-[0.82rem] font-bold text-blue-600 whitespace-nowrap shrink-0">
-          {stroopsToXlm(activity.amount)} <span className="text-[0.68rem] font-normal">XLM</span>
+          {formatContractAmount(activity.amount)} <span className="text-[0.68rem] font-normal">{CONTRACT_TOKEN_CONFIG.SYMBOL}</span>
         </div>
       );
     case 'deposit':
       return (
         <div className="font-mono text-[0.82rem] font-bold text-green-600 whitespace-nowrap shrink-0">
-          +{stroopsToXlm(activity.amount)} <span className="text-[0.68rem] font-normal">XLM</span>
+          +{formatContractAmount(activity.amount)} <span className="text-[0.68rem] font-normal">{CONTRACT_TOKEN_CONFIG.SYMBOL}</span>
         </div>
       );
     case 'withdraw':
       return (
         <div className="font-mono text-[0.82rem] font-bold text-amber-600 whitespace-nowrap shrink-0">
-          -{stroopsToXlm(activity.amount)} <span className="text-[0.68rem] font-normal">XLM</span>
+          -{formatContractAmount(activity.amount)} <span className="text-[0.68rem] font-normal">{CONTRACT_TOKEN_CONFIG.SYMBOL}</span>
         </div>
       );
     default:
