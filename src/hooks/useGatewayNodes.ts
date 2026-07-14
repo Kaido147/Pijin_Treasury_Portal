@@ -71,7 +71,7 @@ export interface UseGatewayNodesReturn {
   nodes: GatewayNode[];
   activeNodes: GatewayNode[];
   revokedNodes: GatewayNode[];
-  addNode: (data: { name: string; address: string; region: string }) => Promise<RegistryTxState | void>;
+  addNode: (data: { name: string; address: string; region_id: string }) => Promise<RegistryTxState | void>;
   removeNode: (address: string) => Promise<RegistryTxState | void>;
   /** Unified transaction state machine */
   txState: RegistryTxState;
@@ -303,7 +303,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
   // ─── addNode ──────────────────────────────────────────
 
   const addNode = useCallback(
-    async (data: { name: string; address: string; region: string }): Promise<RegistryTxState | void> => {
+    async (data: { name: string; address: string; region_id: string }): Promise<RegistryTxState | void> => {
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
@@ -410,7 +410,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
             txHash: submitResult.hash,
             action: 'register',
             name: data.name,
-            region: data.region,
+            region_id: data.region_id,
           }),
           headers: { 'Content-Type': 'application/json' },
         });
