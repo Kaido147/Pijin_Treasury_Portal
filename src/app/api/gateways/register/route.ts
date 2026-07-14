@@ -13,11 +13,12 @@ import { inspect } from 'node:util';
 import type { GatewayNode, NodeStatus } from '@/core/types';
 import { getSorobanConfig } from '@/infrastructure/config/server';
 import { requireEnv } from '@/infrastructure/helpers/requireEnv';
+import { buildAndAssembleTransaction, SimulationError } from '@/infrastructure/helpers/contractSimulation';
 
 type RegisterGatewayRequest = {
     name?: string;
     address?: string;
-    region_id?: string;
+    region_id: string;
     walletPublicKey?: string;
 };
 
@@ -29,12 +30,13 @@ type StoredGatewayNode = {
     status: NodeStatus | null;
 };
 
+// Data mapping to return the structured data from supabase
 function mapStoredNode(node: StoredGatewayNode): GatewayNode {
     return {
         id: node.id,
         name: node.name,
         address: node.stellar_address,
-        regionSlug: node.region_id,
+        region: node.region_id,
         status: node.status ?? 'syncing',
         uptime: '—',
         balance: '0.00',
@@ -125,7 +127,7 @@ export async function POST(request: Request) {
 
         if (!data.name || !data.address || !data.region_id || !data.walletPublicKey) {
             return NextResponse.json(
-                { error: 'name, address, region_id, and walletPublicKey are required' },
+                { error: 'name, address, region, and walletPublicKey are required' },
                 { status: 400 }
             );
         }
@@ -155,53 +157,37 @@ export async function POST(request: Request) {
         // Use the helper function from SorobanConfig
         const { server, contractId, networkPassphrase } = getSorobanConfig();
 
-        // Source account = wallet that pays gas (sequence increments on wallet, not server key)
-        const sourceAccount = await server.getAccount(data.walletPublicKey);
-
-        let tx = new TransactionBuilder(sourceAccount, {
-            fee: '100',
-            networkPassphrase,
-        })
-            .addOperation(
-                new Contract(contractId).call('register_gateway',
+        // Simulate the transaction using the helper function
+        try {
+            const assembledTx = await buildAndAssembleTransaction({
+                server,
+                walletPublicKey: data.walletPublicKey,
+                networkPassphrase,
+                contractId,
+                method: 'register_gateway',
+                args: [
                     adminKeyPair.toScVal(),
-                    gatewayAddress.toScVal(),
-                )
-            )
-            .setTimeout(30)
-            .build();
+                    gatewayAddress.toScVal()
+                ]
+            });
 
-        // Simulate to calculate exact Soroban fees + footprint
-        const simulation = await server.simulateTransaction(tx);
-
-        if (rpc.Api.isSimulationError(simulation)) {
-            const events = formatSimulationEvents(simulation.events);
-            console.error('Simulation Error:', simulation.error);
-            console.error('Simulation Events:', inspect(events, { depth: null, colors: false }));
-
-            // Determine error type based on the simulation error message
-            let errorType = 'simulation_failed';
-            const errorMessage = simulation.error?.toLowerCase() || '';
-
-            if (errorMessage.includes('gas') || errorMessage.includes('limit') || errorMessage.includes('budget') || errorMessage.includes('resource')) {
-                errorType = 'out_of_gas';
-            }
-
+            // Return the unsigned base64 XDR payload to the client for wallet signing
             return NextResponse.json({
-                type: errorType,
-                error: 'Contract simulation failed',
-                details: simulation.error || 'Unknown simulation error',
-                events
-            }, { status: 422 });
+                xdr: assembledTx.toXDR()
+            }, { status: 200 });
         }
-
-        // Assemble with real fees — do NOT sign server-side
-        const assembled = rpc.assembleTransaction(tx, simulation).build();
-
-        return NextResponse.json({
-            unsignedXdr: assembled.toEnvelope().toXDR('base64'),
-        }, { status: 200 });
-
+        catch (error: unknown) {
+            // Custom error handling for smart contracts
+            if (error instanceof SimulationError) {
+                return NextResponse.json({
+                    error: error.message,
+                    details: error.details,
+                    events: error.events,
+                }, { status: 400 })
+            }
+            console.error(error);
+            return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        }
     } catch (error) {
         console.error(error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -264,40 +250,37 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid Stellar Public Key format.' }, { status: 400 });
         }
 
-        // Source account = wallet that pays gas
-        const sourceAccount = await server.getAccount(walletPublicKey);
-
-        let tx = new TransactionBuilder(sourceAccount, {
-            fee: '100',
-            networkPassphrase,
-        })
-            .addOperation(
-                new Contract(contractId).call('remove_gateway',
+        // Simulate the transaction using the helper function
+        try {
+            const assembledTx = await buildAndAssembleTransaction({
+                server,
+                walletPublicKey,
+                networkPassphrase,
+                contractId,
+                method: 'remove_gateway', // call remove_gateway() from smart contract
+                args: [
                     adminKeyPair.toScVal(),
-                    gatewayAddress.toScVal(),
-                )
-            )
-            .setTimeout(30)
-            .build();
+                    gatewayAddress.toScVal()
+                ]
+            });
 
-        const simulation = await server.simulateTransaction(tx);
-
-        if (rpc.Api.isSimulationError(simulation)) {
-            const events = formatSimulationEvents(simulation.events);
-            console.error('Simulation Error:', simulation.error);
+            // Return the unsigned base64 XDR payload to the client for wallet signing
             return NextResponse.json({
-                error: 'Contract simulation failed',
-                details: simulation.error || 'Unknown simulation error',
-                events
-            }, { status: 400 });
+                xdr: assembledTx.toXDR()
+            }, { status: 200 });
         }
-
-        // Assemble — return unsigned envelope XDR
-        const assembled = rpc.assembleTransaction(tx, simulation).build();
-
-        return NextResponse.json({
-            unsignedXdr: assembled.toEnvelope().toXDR('base64'),
-        }, { status: 200 });
+        catch (error: unknown) {
+            // Custom error handling for smart contracts
+            if (error instanceof SimulationError) {
+                return NextResponse.json({
+                    error: error.message,
+                    details: error.details,
+                    events: error.events,
+                }, { status: 400 })
+            }
+            console.error(error);
+            return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        }
 
     } catch (error) {
         console.error(error);
@@ -420,18 +403,40 @@ export async function PATCH(request: NextRequest) {
                 .eq('stellar_address', onChainGatewayAddress)
                 .maybeSingle();
 
+            // Resolve body.region (slug) to its region UUID in the database
+            let regionId: string | null = null;
+            if (body.region) {
+                const { data: regionRecord, error: regionError } = await supabase
+                    .from('regions')
+                    .select('id')
+                    .eq('slug', body.region)
+                    .maybeSingle();
+
+                if (regionRecord) {
+                    regionId = regionRecord.id;
+                } else if (regionError) {
+                    console.error('Error resolving region slug:', regionError);
+                }
+            }
+
             let nodeError;
             if (existingNode) {
                 // Reactivation path
                 ({ error: nodeError } = await supabase
                     .from('nodes')
-                    .update({ status: 'active', name: body.name || 'Unknown', region: body.region || 'UNKNOWN' })
+                    .update({ status: 'active', name: body.name || 'Unknown', region_id: regionId })
                     .eq('stellar_address', onChainGatewayAddress));
             } else {
                 // New registration path
                 ({ error: nodeError } = await supabase
                     .from('nodes')
-                    .insert({ stellar_address: onChainGatewayAddress, name: body.name || 'Unknown', region: body.region || 'UNKNOWN', status: 'active', registered_by: adminRecord.id }));
+                    .insert({
+                        stellar_address: onChainGatewayAddress,
+                        name: body.name || 'Unknown',
+                        region_id: regionId,
+                        status: 'active',
+                        registered_by: adminRecord.id
+                    }));
             }
 
             if (nodeError) {
