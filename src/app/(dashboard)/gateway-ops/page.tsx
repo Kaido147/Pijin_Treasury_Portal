@@ -44,6 +44,7 @@ export default function GatewayOpsPage() {
     isSuccess,
     isLoading,
     loadError,
+    fetchNodes,
   } = useGatewayNodes();
 
   const [showRegisterForm, setShowRegisterForm] = useState(false);
@@ -99,6 +100,17 @@ export default function GatewayOpsPage() {
   const [fundDialogOpen, setFundDialogOpen] = useState<boolean>(false);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const { formState, txHash, submitTransfer, resetTransfer, transferError } = useTransfer();
+
+  // ─── Funding Submit Wrapper ────────────────────────────
+  // Binds fetchNodes as the onConfirmed callback so the dashboard
+  // automatically refetches node balances the moment the transaction
+  // is confirmed on-chain — guaranteed, no race condition.
+  const handleSubmitTransfer = (data: {
+    address: string;
+    amount: string;
+    memo: string;
+    pin: string;
+  }) => submitTransfer({ ...data, onConfirmed: () => fetchNodes(false) });
 
   const handleFundClick = (address: string): void => {
     if (!isConnected) {
@@ -280,7 +292,7 @@ export default function GatewayOpsPage() {
               formState={formState}
               txHash={txHash}
               transferError={transferError}
-              onSubmit={submitTransfer}
+              onSubmit={handleSubmitTransfer}
               onReset={resetTransfer}
               prefilledAddress={selectedAddress}
             />

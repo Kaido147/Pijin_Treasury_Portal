@@ -11,6 +11,11 @@ import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 import { inspect } from 'node:util';
 import type { GatewayNode, NodeStatus } from '@/core/types';
+import {
+    syncNodeBalances,
+    triggerImmediateBalanceSync,
+    isBalanceStale,
+} from '@/infrastructure/stellar/balance-sync';
 
 type RegisterGatewayRequest = {
     name?: string;
@@ -35,9 +40,24 @@ type StoredGatewayNode = {
     stellar_address: string;
     region: string;
     status: NodeStatus | null;
+    /** Cached XLM balance from the background sync worker. Null if never synced. */
+    balance: number | null;
+    /** ISO timestamp of the last successful Horizon sync. */
+    last_synced_at: string | null;
 };
 
+/**
+ * Maps a DB node row to the GatewayNode domain type.
+ * Balance is read from the cached DB column — never fetched live here.
+ * Use the balance-sync service to keep this column fresh.
+ */
 function mapStoredNode(node: StoredGatewayNode): GatewayNode {
+    // Format the numeric DB balance to a locale string with 2 decimal places.
+    // Falls back to '0.00' if the column is null (never synced yet).
+    const formattedBalance = node.balance != null
+        ? node.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : '0.00';
+
     return {
         id: node.id,
         name: node.name,
@@ -45,7 +65,7 @@ function mapStoredNode(node: StoredGatewayNode): GatewayNode {
         region: node.region,
         status: node.status ?? 'syncing',
         uptime: '—',
-        balance: '0.00',
+        balance: formattedBalance,
     };
 }
 
@@ -232,27 +252,55 @@ export async function POST(request: Request) {
 
 // ═══════════════════════════════════════════════════════════
 // GET — List all registered gateway nodes
+//
+// CQRS Read Path:
+//   1. Read from DB instantly (includes cached balance)
+//   2. Check if any nodes have stale balances (> 60s old)
+//   3. If stale, trigger background SWR sync (fire-and-forget)
+//      The current request still returns immediately with
+//      the last-known balance from the DB cache.
 // ═══════════════════════════════════════════════════════════
 
 export async function GET() {
     try {
-        const supabase = await createServiceClient();
+        const supabase = createServiceClient();
 
+        // ── Query Read: include balance cache columns ──
         const { data, error } = await supabase
             .from('nodes')
-            .select('id, name, stellar_address, region, status')
+            .select('id, name, stellar_address, region, status, balance, last_synced_at')
             .order('name', { ascending: true });
 
         if (error) {
-            console.error('database error:', error);
+            console.error('[GatewayRegister] database error:', error);
             return NextResponse.json({ error: error.message }, { status: 500 });
         }
 
-        const nodes: GatewayNode[] = ((data ?? []) as StoredGatewayNode[]).map(mapStoredNode);
+        const rawNodes = (data ?? []) as StoredGatewayNode[];
+
+        // ── SWR Stale Check: find nodes that need a balance refresh ──
+        const staleNodes = rawNodes.filter((n) => isBalanceStale(n.last_synced_at));
+
+        if (staleNodes.length > 0) {
+            // Fire-and-forget: do NOT await — response must return immediately
+            // The next poll (every 30s from useGatewayNodes) will see fresh data
+            syncNodeBalances(
+                staleNodes.map((n) => ({
+                    id: n.id,
+                    stellar_address: n.stellar_address,
+                    last_synced_at: n.last_synced_at,
+                }))
+            ).catch((err) => {
+                console.error('[GatewayRegister] Background sync failed:', err);
+            });
+        }
+
+        // ── Respond instantly with DB-cached data ──
+        const nodes: GatewayNode[] = rawNodes.map(mapStoredNode);
 
         return NextResponse.json(nodes);
     } catch (error) {
-        console.error(error);
+        console.error('[GatewayRegister] Internal error in GET:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
@@ -484,6 +532,21 @@ export async function PATCH(request: NextRequest) {
             if (nodeError) {
                 console.error('database error:', nodeError);
                 return NextResponse.json({ error: nodeError.message }, { status: 500 });
+            }
+
+            // ── Event-Driven Cache Invalidation ──
+            // Immediately queue a Horizon balance fetch for this node so it
+            // shows a real balance on the next dashboard poll (not '0.00').
+            // We need the node's DB id — fetch the freshly inserted/updated row.
+            const { data: syncedNode } = await supabase
+                .from('nodes')
+                .select('id')
+                .eq('stellar_address', onChainGatewayAddress)
+                .maybeSingle();
+
+            if (syncedNode?.id) {
+                // Fire-and-forget — do NOT await
+                triggerImmediateBalanceSync(syncedNode.id, onChainGatewayAddress);
             }
         } else {
             // Soft-delete — mark node inactive, preserve the record

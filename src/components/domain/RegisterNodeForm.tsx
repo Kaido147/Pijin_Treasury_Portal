@@ -160,9 +160,9 @@ export function RegisterNodeForm({
       {/* Header */}
       <div className="px-4 py-4 lg:px-7 lg:py-5 border-b border-surface-raised">
         <div className="flex items-center gap-3">
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isReactivationMode ? 'bg-gradient-to-br from-indigo-700 to-indigo-500' : 'bg-gradient-to-br from-navy-900 to-navy-700'}`}>
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isReactivationMode ? 'bg-gradient-to-br from-reactivate to-reactivate/80' : 'bg-gradient-to-br from-navy-900 to-navy-700'}`}>
             {isReactivationMode ? (
-              <RefreshCw className="w-4 h-4 text-white" />
+              <RefreshCw className="w-4 h-4 text-white dark:text-navy-950" />
             ) : (
               <Server className="w-4 h-4 text-white" />
             )}
@@ -313,15 +313,15 @@ export function RegisterNodeForm({
               placeholder="G… (56-character Stellar public key)"
               required
               disabled={isSubmitting}
-              className={`w-full px-4 py-2.5 rounded-xl border-[1.5px] bg-slate-50 text-base lg:text-[0.78rem] font-mono text-navy-900 outline-none transition-all focus:bg-white ${isReactivationMode ? 'border-indigo-400 focus:border-indigo-600' : 'border-border-default focus:border-navy-700'}`}
+              className={`w-full px-4 py-2.5 rounded-xl border-[1.5px] bg-slate-50 text-base lg:text-[0.78rem] font-mono text-navy-900 outline-none transition-all focus:bg-white ${isReactivationMode ? 'border-reactivate-border focus:border-reactivate' : 'border-border-default focus:border-navy-700'}`}
             />
           </div>
 
           {/* Reactivation mode banner */}
           {isReactivationMode && (
-            <div className="flex gap-3 items-start px-4 py-3 rounded-xl bg-indigo-50 border border-indigo-200">
-              <Info className="w-4 h-4 text-indigo-600 mt-0.5 shrink-0" />
-              <p className="text-indigo-700 text-[0.78rem] leading-relaxed">
+            <div className="flex gap-3 items-start px-4 py-3 rounded-xl bg-reactivate-bg border border-reactivate-border">
+              <Info className="w-4 h-4 text-reactivate mt-0.5 shrink-0" />
+              <p className="text-reactivate text-[0.78rem] leading-relaxed">
                 <span className="font-bold">Existing Node Signature Profile Detected.</span>{' '}
                 Submitting this action will re-execute the on-chain Soroban registry handshake
                 and restore this gateway&apos;s active status in the whitelist.
@@ -333,14 +333,14 @@ export function RegisterNodeForm({
             id="submit-node-btn"
             type="submit"
             disabled={isSubmitting}
-            className={`flex items-center justify-center gap-2 w-full py-3 rounded-2xl text-white font-bold transition-all shadow-btn disabled:opacity-60 disabled:cursor-not-allowed ${isReactivationMode ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-navy-900 hover:bg-navy-700'}`}
+            className={`flex items-center justify-center gap-2 w-full py-3 rounded-2xl text-white font-bold transition-all shadow-btn disabled:opacity-60 disabled:cursor-not-allowed ${isReactivationMode ? 'bg-reactivate hover:bg-reactivate-hover text-white dark:text-navy-950' : 'bg-navy-900 hover:bg-navy-700'}`}
           >
             {isSubmitting ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : isReactivationMode ? (
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-4 h-4 text-white dark:text-navy-950" />
             ) : (
-              <Server className="w-4 h-4" />
+              <Server className="w-4 h-4 text-white" />
             )}
             {getSubmitLabel(txState, isReactivationMode)}
           </button>
