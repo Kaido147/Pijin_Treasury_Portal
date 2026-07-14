@@ -15,14 +15,14 @@ function getSubmitLabel(
     return isReactivationMode ? 'Re-authorize Gateway Node' : 'Register Node';
   }
   switch (txState.status) {
-    case 'VALIDATING_CLIENT':  return 'Validating…';
-     case 'BROADCASTING':
+    case 'VALIDATING_CLIENT': return 'Validating…';
+    case 'BROADCASTING':
       return txState.broadcastPhase === 2
         ? 'Transmitting Core XDR…'
         : 'Generating Ledger Blueprint…';
     case 'AWAITING_SIGNATURE': return 'Sign in Wallet…';
-    case 'ON_CHAIN_MINING':    return 'Confirming on Soroban Staging…';
-    case 'SUCCESS':            return 'Clearance Fully Granted';
+    case 'ON_CHAIN_MINING': return 'Confirming on Soroban Staging…';
+    case 'SUCCESS': return 'Clearance Fully Granted';
     default:
       return isReactivationMode ? 'Re-authorize Gateway Node' : 'Register Node';
   }
@@ -36,7 +36,7 @@ function normalizeSlug(input: string): string {
 }
 
 interface RegisterNodeFormProps {
-  onSubmit: (data: { name: string; address: string; region: RegionCode }) => void;
+  onSubmit: (data: { name: string; address: string; region_id: string }) => void;
   isSubmitting: boolean;
   isSuccess: boolean;
   txState?: RegistryTxState;
@@ -98,10 +98,15 @@ export function RegisterNodeForm({
     }
   }, [showAddRegion]);
 
+  // Handle the data submitted from client-side
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.region) return;
-    onSubmit({ ...formData, region: formData.region });
+    onSubmit({
+      name: formData.name,
+      address: formData.address,
+      region_id: formData.region,
+    });
   };
 
   // Pre-fill address when parent passes a revoked node address
@@ -145,7 +150,7 @@ export function RegisterNodeForm({
 
       // Append + auto-select the new region
       setRegions((prev) => [...prev, payload]);
-      setFormData((p) => ({ ...p, region: payload.slug }));
+      setFormData((p) => ({ ...p, region: payload.id })); // region_id
       setShowAddRegion(false);
       setNewRegionInput('');
     } catch {
@@ -298,7 +303,8 @@ export function RegisterNodeForm({
                       {regionsError ? '⚠ Failed to load regions' : regions.length === 0 ? 'Loading…' : '— Select region —'}
                     </option>
                     {regions.map((r) => (
-                      <option key={r.id} value={r.slug}>
+                      // Use id instead of slug property
+                      <option key={r.id} value={r.id}>
                         {r.slug}
                       </option>
                     ))}
