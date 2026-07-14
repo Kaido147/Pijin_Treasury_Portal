@@ -40,11 +40,12 @@ export interface Region {
 
 export type NodeStatus = 'active' | 'syncing' | 'offline' | 'inactive';
 
+// Same as database nodes table
 export interface GatewayNode {
   id: string;
   name: string;
   address: string;
-  region: string;
+  region_id: string;
   status: NodeStatus;
   uptime: string;
   balance: string;
