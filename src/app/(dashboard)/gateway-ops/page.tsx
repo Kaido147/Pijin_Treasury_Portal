@@ -68,7 +68,7 @@ export default function GatewayOpsPage() {
   // Form submits → addNode → Freighter signs XDR → on-chain.
   // No PIN involved. PIN belongs exclusively in the funding flow.
 
-  const handleRegistration = async (data: { name: string; address: string; region: string }): Promise<void> => {
+  const handleRegistration = async (data: { name: string; address: string; region_id: string }): Promise<void> => {
     const result = await addNode(data);
     if (result?.status === 'FAILED') {
       toast.error(
