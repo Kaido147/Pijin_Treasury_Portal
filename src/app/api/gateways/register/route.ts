@@ -11,29 +11,21 @@ import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 import { inspect } from 'node:util';
 import type { GatewayNode, NodeStatus } from '@/core/types';
+import { getSorobanConfig } from '@/infrastructure/config/server';
+import { requireEnv } from '@/infrastructure/helpers/requireEnv';
 
 type RegisterGatewayRequest = {
     name?: string;
     address?: string;
-    region?: string;
+    region_id?: string;
     walletPublicKey?: string;
 };
-
-function requireEnv(name: string): string {
-    const value = process.env[name];
-
-    if (!value) {
-        throw new Error(`${name} is not defined`);
-    }
-
-    return value;
-}
 
 type StoredGatewayNode = {
     id: string;
     name: string;
     stellar_address: string;
-    region: string;
+    region_id: string;
     status: NodeStatus | null;
 };
 
@@ -42,7 +34,7 @@ function mapStoredNode(node: StoredGatewayNode): GatewayNode {
         id: node.id,
         name: node.name,
         address: node.stellar_address,
-        region: node.region,
+        region_id: node.region_id,
         status: node.status ?? 'syncing',
         uptime: '—',
         balance: '0.00',
@@ -143,9 +135,9 @@ export async function POST(request: Request) {
 
         const data = await request.json() as RegisterGatewayRequest;
 
-        if (!data.name || !data.address || !data.region || !data.walletPublicKey) {
+        if (!data.name || !data.address || !data.region_id || !data.walletPublicKey) {
             return NextResponse.json(
-                { error: 'name, address, region, and walletPublicKey are required' },
+                { error: 'name, address, region_id, and walletPublicKey are required' },
                 { status: 400 }
             );
         }
@@ -161,11 +153,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'admin profile not found' }, { status: 404 });
         }
 
-        const serverUrl = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ?? requireEnv('NEXT_PUBLIC_SOROBAN_RPC_URL');
-        const contractId = requireEnv('CONTRACT_ID');
-        const networkPassphrase = process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE ?? requireEnv('NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE');
-        const server = new rpc.Server(serverUrl);
-
         // adminAddress from JWT — used as the contract admin arg (not the fee payer)
         // walletPublicKey — the connected wallet that pays gas and signs
         let adminKeyPair: Address;
@@ -176,6 +163,9 @@ export async function POST(request: Request) {
         } catch {
             return NextResponse.json({ error: 'Invalid Stellar Public Key format.' }, { status: 400 });
         }
+
+        // Use the helper function from SorobanConfig
+        const { server, contractId, networkPassphrase } = getSorobanConfig();
 
         // Source account = wallet that pays gas (sequence increments on wallet, not server key)
         const sourceAccount = await server.getAccount(data.walletPublicKey);
@@ -240,7 +230,7 @@ export async function GET() {
 
         const { data, error } = await supabase
             .from('nodes')
-            .select('id, name, stellar_address, region, status')
+            .select('id, name, stellar_address, region_id, status')
             .order('name', { ascending: true });
 
         if (error) {
@@ -280,10 +270,7 @@ export async function DELETE(request: NextRequest) {
             );
         }
 
-        const serverUrl = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ?? requireEnv('NEXT_PUBLIC_SOROBAN_RPC_URL');
-        const contractId = requireEnv('CONTRACT_ID');
-        const networkPassphrase = process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE ?? requireEnv('NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE');
-        const server = new rpc.Server(serverUrl);
+        const { server, contractId, networkPassphrase } = getSorobanConfig();
 
         let adminKeyPair: Address;
         let gatewayAddress: Address;
@@ -372,9 +359,7 @@ export async function PATCH(request: NextRequest) {
             return NextResponse.json({ error: 'txHash and action are required' }, { status: 400 });
         }
 
-        const serverUrl = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ?? requireEnv('NEXT_PUBLIC_SOROBAN_RPC_URL');
-        const expectedContractId = requireEnv('CONTRACT_ID');
-        const server = new rpc.Server(serverUrl);
+        const { server, contractId, } = getSorobanConfig();
 
         // ── Gate A: Fetch TX from Soroban ledger ──
         const txResult = await server.getTransaction(body.txHash);
@@ -432,7 +417,7 @@ export async function PATCH(request: NextRequest) {
         }
 
         // ── Enforce Gate C ──
-        if (onChainContractId !== expectedContractId) {
+        if (onChainContractId !== contractId) {
             return NextResponse.json(
                 { error: 'Contract address mismatch — transaction targets unexpected contract' },
                 { status: 403 }
