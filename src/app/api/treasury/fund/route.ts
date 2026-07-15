@@ -221,6 +221,24 @@ export async function POST(request: Request) {
             );
         }
 
+        // Best-effort telemetry. The transaction has already been accepted by
+        // Stellar, so a dashboard tracking failure must never fail the payment.
+        const { error: trackingError } = await supabase
+            .from('treasury_transfers')
+            .upsert({
+                tx_hash: submitResult.hash,
+                destination,
+                asset_code: 'XLM',
+                amount: amountNum.toFixed(7),
+                status: 'pending',
+                submitted_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            }, { onConflict: 'tx_hash' });
+
+        if (trackingError) {
+            console.error('Treasury transfer telemetry insert failed:', trackingError.message);
+        }
+
         return NextResponse.json(
             {
                 success: true,

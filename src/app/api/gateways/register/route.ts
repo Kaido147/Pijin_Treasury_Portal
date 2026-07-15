@@ -77,7 +77,6 @@ function mapStoredNode(node: StoredGatewayNode): GatewayNode {
         region: regionRow?.name ?? regionRow?.slug ?? 'Unknown',
         regionSlug: regionRow?.slug ?? node.region_id,
         status: node.status ?? 'syncing',
-        uptime: '—',
         balance: formattedBalance,
     };
 }

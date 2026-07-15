@@ -21,7 +21,8 @@ export interface WalletState {
 /** Wallet summary data displayed on the Command Center hero card */
 export interface WalletInfo {
   address: string;
-  balancePhp: string;
+  /** Exact PHPC trustline balance held by the treasury account. */
+  balancePhpc: string;
   balanceXlm: string;
   change24h: string;
   fundedNodes: string;
@@ -50,7 +51,6 @@ export interface GatewayNode {
   /** Slug key stored in DB (e.g. "SEA-01") — use for filtering, URL params, dropdown re-selection */
   regionSlug: string;
   status: NodeStatus;
-  uptime: string;
   balance: string;
 }
 
@@ -169,7 +169,8 @@ export interface StatMetric {
   label: string;
   value: string;
   delta: string;
-  positive: boolean;
+  /** Null means there is no prior live sample to compare yet. */
+  positive: boolean | null;
   /** Lucide icon identifier — mapped to a component via STAT_ICON_MAP */
   iconName: string;
 }
@@ -179,7 +180,44 @@ export type ServiceStatus = 'operational' | 'degraded' | 'down';
 export interface NetworkService {
   name: string;
   status: ServiceStatus;
-  uptime: number;
+  latencyMs: number | null;
+  detail: string;
+}
+
+export type RelayerReadinessStatus =
+  | 'ready'
+  | 'low_balance'
+  | 'unfunded'
+  | 'unauthorized'
+  | 'unavailable';
+
+/** On-chain readiness of a trusted gateway wallet (not device uptime). */
+export interface RelayerReadiness {
+  id: string;
+  name: string;
+  address: string;
+  status: RelayerReadinessStatus;
+  balanceXlm: string;
+  availableXlm: string;
+  minimumRequiredXlm: string;
+  detail: string;
+}
+
+export interface DashboardMetrics {
+  activeNodes: number;
+  distributedXlm: number | null;
+  distributedChangePct: number | null;
+  pendingTransactions: number | null;
+  avgLatencyMs: number | null;
+}
+
+export interface DashboardOverview {
+  walletInfo: WalletInfo;
+  metrics: DashboardMetrics;
+  services: NetworkService[];
+  relayers: RelayerReadiness[];
+  lastUpdated: string;
+  warnings: string[];
 }
 
 // ─── Fund Node / Transfer ───────────────────────────────

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { LogOut, ChevronRight } from 'lucide-react';
 import { useStellarWallet } from '@/hooks/useStellarWallet';
@@ -30,9 +31,14 @@ export function Sidebar({ isOpen }: SidebarProps) {
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-white/[0.07]">
-        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-white/[0.12]">
-          <span className="text-white font-extrabold text-base">P</span>
-        </div>
+        <Image
+          src="/images/icon.png"
+          alt="Pijin logo"
+          width={32}
+          height={32}
+          className="w-8 h-8 rounded-xl shrink-0 object-cover"
+          priority
+        />
         <div>
           <div className="text-white font-bold text-[0.9rem] leading-tight">
             Pijin Treasury

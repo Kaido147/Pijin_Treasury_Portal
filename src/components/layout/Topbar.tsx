@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Menu, X, Wallet, Loader2, Copy, Check, Link2Off } from 'lucide-react';
+import { Menu, X, Wallet, Loader2, Copy, Check, Link2Off, AlertTriangle } from 'lucide-react';
 import { useStellarWallet } from '@/hooks/useStellarWallet';
 import { truncateAddress } from '@/core/utils';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -29,7 +29,7 @@ export function Topbar({ isSidebarOpen, onToggleSidebar }: TopbarProps) {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-2 lg:px-6 lg:py-3 bg-surface/85 backdrop-blur-md border-b border-border-default">
+    <header className="sticky top-0 z-30 flex items-center gap-3 px-4 py-2 lg:px-6 lg:py-3 bg-surface/85 backdrop-blur-md border-b border-border-default">
       {/* Sidebar toggle */}
       <button
         id="sidebar-toggle-btn"
@@ -43,8 +43,18 @@ export function Topbar({ isSidebarOpen, onToggleSidebar }: TopbarProps) {
         )}
       </button>
 
+      {!isConnected && (
+        <div
+          role="status"
+          className="mx-auto flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800"
+        >
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span>Connect admin wallet to perform admin actions.</span>
+        </div>
+      )}
+
       {/* Right section */}
-      <div className="flex items-center gap-3">
+      <div className={`flex items-center gap-3 ${isConnected ? 'ml-auto' : ''}`}>
         {/* Network badge — always visible */}
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-border-default">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
