@@ -48,12 +48,12 @@ function DetailField({
 }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-400">
+      <span className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground/75">
         {label}
       </span>
       <span
         className={cn(
-          'text-[0.72rem] text-slate-700 break-all',
+          'text-[0.72rem] text-foreground/85 break-all',
           mono && 'font-mono',
         )}
       >
@@ -68,12 +68,12 @@ function DetailField({
 function SpendSummary({ a }: { a: SpendActivity }) {
   return (
     <div className="flex flex-col gap-0.5 min-w-0">
-      <div className="flex items-center gap-1.5 font-mono text-[0.72rem] text-navy-900 font-medium truncate">
+      <div className="flex items-center gap-1.5 font-mono text-[0.72rem] text-foreground font-medium truncate">
         <span className="truncate">{truncateAddress(a.sender)}</span>
-        <span className="text-slate-400">→</span>
-        <span className="font-bold text-blue-700">{a.receiverShortId}</span>
+        <span className="text-muted-foreground/50">→</span>
+        <span className="font-extrabold text-blue-600 dark:text-blue-400">{a.receiverShortId}</span>
       </div>
-      <div className="text-slate-400 text-[0.68rem] truncate">
+      <div className="text-muted-foreground/70 text-[0.68rem] truncate">
         {formatContractAmount(a.amount)} {CONTRACT_TOKEN_CONFIG.SYMBOL} · toll {formatContractAmount(a.protocolToll)} {CONTRACT_TOKEN_CONFIG.SYMBOL} · {formatDate(new Date(a.timestamp))} {formatTime(new Date(a.timestamp))}
       </div>
     </div>
@@ -99,10 +99,10 @@ function SpendDetail({ a }: { a: SpendActivity }) {
 function DepositSummary({ a }: { a: DepositActivity }) {
   return (
     <div className="flex flex-col gap-0.5 min-w-0">
-      <div className="font-mono text-[0.72rem] text-navy-900 font-medium truncate">
+      <div className="font-mono text-[0.72rem] text-foreground font-medium truncate">
         {truncateAddress(a.sender)} deposited {formatContractAmount(a.amount)} {CONTRACT_TOKEN_CONFIG.SYMBOL}
       </div>
-      <div className="text-slate-400 text-[0.68rem]">
+      <div className="text-muted-foreground/70 text-[0.68rem]">
         {formatDate(new Date(a.timestamp))} {formatTime(new Date(a.timestamp))}
       </div>
     </div>
@@ -123,10 +123,10 @@ function DepositDetail({ a }: { a: DepositActivity }) {
 function WithdrawSummary({ a }: { a: WithdrawActivity }) {
   return (
     <div className="flex flex-col gap-0.5 min-w-0">
-      <div className="font-mono text-[0.72rem] text-navy-900 font-medium truncate">
+      <div className="font-mono text-[0.72rem] text-foreground font-medium truncate">
         {truncateAddress(a.sender)} withdrew {formatContractAmount(a.amount)} {CONTRACT_TOKEN_CONFIG.SYMBOL}
       </div>
-      <div className="text-slate-400 text-[0.68rem]">
+      <div className="text-muted-foreground/70 text-[0.68rem]">
         {formatDate(new Date(a.timestamp))} {formatTime(new Date(a.timestamp))}
       </div>
     </div>
@@ -147,13 +147,13 @@ function RecipientSummary({ a }: { a: RecipientActivity }) {
   const verb = a.type === 'register_recipient' ? 'Registered' : 'Updated';
   return (
     <div className="flex flex-col gap-0.5 min-w-0">
-      <div className="font-mono text-[0.72rem] text-navy-900 font-medium truncate">
+      <div className="font-mono text-[0.72rem] text-foreground font-medium truncate">
         {verb}{' '}
-        <span className="font-bold text-purple-700">{a.shortId}</span>
+        <span className="font-extrabold text-purple-600 dark:text-purple-400">{a.shortId}</span>
         {' → '}
         {truncateAddress(a.receiver)}
       </div>
-      <div className="text-slate-400 text-[0.68rem]">
+      <div className="text-muted-foreground/70 text-[0.68rem]">
         {formatDate(new Date(a.timestamp))} {formatTime(new Date(a.timestamp))}
       </div>
     </div>
@@ -175,19 +175,19 @@ function AmountBadge({ activity }: { activity: NetworkActivity }) {
   switch (activity.type) {
     case 'spend':
       return (
-        <div className="font-mono text-[0.82rem] font-bold text-blue-600 whitespace-nowrap shrink-0">
+        <div className="font-mono text-[0.82rem] font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap shrink-0">
           {formatContractAmount(activity.amount)} <span className="text-[0.68rem] font-normal">{CONTRACT_TOKEN_CONFIG.SYMBOL}</span>
         </div>
       );
     case 'deposit':
       return (
-        <div className="font-mono text-[0.82rem] font-bold text-green-600 whitespace-nowrap shrink-0">
+        <div className="font-mono text-[0.82rem] font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap shrink-0">
           +{formatContractAmount(activity.amount)} <span className="text-[0.68rem] font-normal">{CONTRACT_TOKEN_CONFIG.SYMBOL}</span>
         </div>
       );
     case 'withdraw':
       return (
-        <div className="font-mono text-[0.82rem] font-bold text-amber-600 whitespace-nowrap shrink-0">
+        <div className="font-mono text-[0.82rem] font-bold text-amber-600 dark:text-amber-400 whitespace-nowrap shrink-0">
           -{formatContractAmount(activity.amount)} <span className="text-[0.68rem] font-normal">{CONTRACT_TOKEN_CONFIG.SYMBOL}</span>
         </div>
       );
@@ -218,9 +218,9 @@ export function ActivityRow({
   return (
     <div
       className={cn(
-        'px-4 lg:px-6 transition-colors border-b border-surface last:border-0',
-        isNew && 'bg-blue-50/60',
-        !isNew && 'hover:bg-slate-50/60',
+        'px-4 lg:px-6 transition-colors border-b border-border/40 last:border-0',
+        isNew && 'bg-blue-500/10 dark:bg-blue-500/15',
+        !isNew && 'hover:bg-muted/40',
       )}
     >
       {/* ── Collapsed row ──────────────────────────────────── */}
@@ -292,14 +292,14 @@ export function ActivityRow({
         <div className="pb-4 pt-1 border-t border-surface/60">
           {/* Tx Hash */}
           <div className="flex items-center gap-1.5 mb-3">
-            <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-400">
+            <span className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground/75">
               Transaction
             </span>
             <a
               href={explorerUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 font-mono text-[0.7rem] text-navy-900 hover:text-blue-600 transition-colors"
+              className="inline-flex items-center gap-1 font-mono text-[0.7rem] text-foreground hover:text-primary transition-colors"
             >
               {truncateAddress(a.txHash)}
               <ExternalLink className="w-2.5 h-2.5" />

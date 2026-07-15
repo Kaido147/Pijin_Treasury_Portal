@@ -223,7 +223,7 @@ export async function POST(request: Request) {
                     gatewayAddress.toScVal(),
                 )
             )
-            .setTimeout(30)
+            .setTimeout(180)
             .build();
 
         // Simulate to calculate exact Soroban fees + footprint
@@ -368,7 +368,7 @@ export async function DELETE(request: NextRequest) {
                     gatewayAddress.toScVal(),
                 )
             )
-            .setTimeout(30)
+            .setTimeout(180)
             .build();
 
         const simulation = await server.simulateTransaction(tx);

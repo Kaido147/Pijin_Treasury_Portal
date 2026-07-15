@@ -204,6 +204,91 @@ function classifyError(
   };
 }
 
+// ─── Soroban Submission Error Helper ─────────────────────
+/**
+ * Extracts and classifies Soroban RPC sendTransaction rejection reasons
+ * (`errorResult` and `diagnosticEvents`).
+ */
+function extractSorobanSubmissionError(
+  submitResult: rpc.Api.SendTransactionResponse,
+  actionLabel: string
+): { failureCode: RegistryFailureCode; failureMessage: string } {
+  console.error(`[${actionLabel}] Soroban sendTransaction returned ERROR status. Full response:`, submitResult);
+
+  let failureCode: RegistryFailureCode = 'UNKNOWN';
+  let failureMessage = 'Transaction was rejected by the Soroban network.';
+
+  try {
+    const errorResult = submitResult.errorResult as any;
+    if (errorResult) {
+      console.error(`[${actionLabel}] errorResult raw attributes:`, errorResult._attributes || errorResult);
+
+      try {
+        if (typeof errorResult.toXDR === 'function') {
+          console.error(`[${actionLabel}] errorResult XDR (base64):`, errorResult.toXDR('base64'));
+        }
+      } catch {}
+
+      // Extract result code whether accessed via method (.result()) or property (._attributes.result)
+      const resObj = typeof errorResult.result === 'function' ? errorResult.result() : (errorResult._attributes?.result || errorResult.result);
+      console.error(`[${actionLabel}] extracted result object:`, resObj?._attributes || resObj);
+
+      const codeSwitch = typeof resObj?.switch === 'function' ? resObj.switch() : (resObj?._attributes?.switch || resObj?.switch || resObj?._switch || resObj);
+      const codeName = codeSwitch?.name ?? String(codeSwitch?.value ?? codeSwitch ?? '');
+      console.error(`[${actionLabel}] TransactionResultCode:`, codeName);
+
+      if (codeName === 'txBAD_SEQ' || codeName === 'tx_bad_seq') {
+        failureCode = 'UNKNOWN';
+        failureMessage = 'Transaction sequence number mismatch (txBAD_SEQ). Another transaction or background check may have updated your account sequence. Please retry.';
+      } else if (codeName === 'txINSUFFICIENT_BALANCE' || codeName === 'tx_insufficient_balance') {
+        failureCode = 'RELAYER_UNFUNDED';
+        failureMessage = 'Insufficient XLM balance in connected wallet to cover gas and Soroban resource fees (txINSUFFICIENT_BALANCE). Please fund your wallet.';
+      } else if (codeName === 'txBAD_AUTH' || codeName === 'tx_bad_auth') {
+        failureCode = 'AUTH_FAILED';
+        failureMessage = 'Soroban authorization failed (txBAD_AUTH). Ensure your connected wallet matches the contract admin account.';
+      } else if (codeName === 'txSOROBAN_INVALID' || codeName === 'tx_soroban_invalid') {
+        failureCode = 'RESOURCE_EXHAUSTION';
+        failureMessage = 'Soroban resource limits or budget exceeded (txSOROBAN_INVALID).';
+      } else if (codeName === 'txTOO_LATE' || codeName === 'txTooLate' || codeName === 'tx_too_late') {
+        failureCode = 'UNKNOWN';
+        failureMessage = 'The transaction expired before submission (txTooLate). Please approve the prompt in your wallet promptly after submitting, or verify that your computer clock is synchronized.';
+      } else if (codeName === 'txNO_ACCOUNT' || codeName === 'tx_no_account') {
+        failureCode = 'AUTH_FAILED';
+        failureMessage = 'Source account not found on-chain (txNO_ACCOUNT). Please fund your wallet on Testnet.';
+      } else if (codeName) {
+        failureMessage = `Transaction rejected by Soroban network (${codeName}).`;
+      }
+    } else if ((submitResult as any).errorResultXdr) {
+      console.error(`[${actionLabel}] raw errorResultXdr:`, (submitResult as any).errorResultXdr);
+    }
+
+    if (submitResult.diagnosticEvents && Array.isArray(submitResult.diagnosticEvents) && submitResult.diagnosticEvents.length > 0) {
+      console.error(`[${actionLabel}] diagnosticEvents:`, submitResult.diagnosticEvents);
+      const diagStrings: string[] = [];
+      for (const evt of submitResult.diagnosticEvents) {
+        try {
+          if (typeof evt.toXDR === 'function') {
+            console.error(`[${actionLabel}] DiagnosticEvent XDR:`, evt.toXDR('base64'));
+          }
+          const str = JSON.stringify(evt, (_, v) => (typeof v === 'bigint' ? v.toString() : v));
+          diagStrings.push(str);
+        } catch {
+          diagStrings.push(String(evt));
+        }
+      }
+      if (diagStrings.length > 0) {
+        failureMessage += ` Diagnostics: ${diagStrings.slice(0, 2).join('; ')}`;
+      }
+    } else if ((submitResult as any).diagnosticEventsXdr) {
+      console.error(`[${actionLabel}] raw diagnosticEventsXdr:`, (submitResult as any).diagnosticEventsXdr);
+    }
+  } catch (parseErr) {
+    console.warn(`[${actionLabel}] Error extracting Soroban submission error details:`, parseErr);
+  }
+
+  return { failureCode, failureMessage };
+}
+
 // ─── Polling Helper ─────────────────────────────────────
 /**
  * Polls server.getTransaction(hash) every intervalMs until SUCCESS or FAILED.
@@ -218,14 +303,20 @@ async function pollUntilConfirmed(
   maxMs = 60000,
   intervalMs = 2000,
 ): Promise<rpc.Api.GetSuccessfulTransactionResponse> {
+  console.log(`[pollUntilConfirmed] Polling transaction: ${hash}`);
   const deadline = Date.now() + maxMs;
   while (Date.now() < deadline) {
-    if (signal.aborted) throw new DOMException('Polling aborted', 'AbortError');
+    if (signal.aborted) {
+      console.log(`[pollUntilConfirmed] Polling aborted for: ${hash}`);
+      throw new DOMException('Polling aborted', 'AbortError');
+    }
     const result = await server.getTransaction(hash);
+    console.log(`[pollUntilConfirmed] Polled ${hash} status:`, result.status, result);
     if (result.status === rpc.Api.GetTransactionStatus.SUCCESS) {
       return result as rpc.Api.GetSuccessfulTransactionResponse;
     }
     if (result.status === rpc.Api.GetTransactionStatus.FAILED) {
+      console.log(`[pollUntilConfirmed] Transaction FAILED on-chain:`, result);
       throw new Error('Transaction failed on-chain during confirmation polling.');
     }
     // NOT_FOUND — still pending. Wait intervalMs with abort awareness.
@@ -233,10 +324,12 @@ async function pollUntilConfirmed(
       const timer = setTimeout(resolve, intervalMs);
       signal.addEventListener('abort', () => {
         clearTimeout(timer);
+        console.log(`[pollUntilConfirmed] Polling aborted during wait for: ${hash}`);
         reject(new DOMException('Polling aborted', 'AbortError'));
       }, { once: true });
     });
   }
+  console.log(`[pollUntilConfirmed] Polling timed out for: ${hash}`);
   throw new Error('Transaction confirmation timed out after 60 seconds.');
 }
 
@@ -349,6 +442,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
 
         if (!res.ok) {
           const errorData: GatewayRegisterErrorResponse = await res.json();
+          console.log('[addNode] API error response (!res.ok):', res.status, errorData);
           const classified = classifyError(errorData, res.status);
           const failState: RegistryTxState = {
             status: 'FAILED',
@@ -360,16 +454,20 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
         }
 
         const { unsignedXdr }: GatewayXdrResponse = await res.json();
+        console.log('[addNode] Received unsignedXdr from API:', unsignedXdr);
 
         // ── AWAITING_SIGNATURE: Freighter popup ──
         setTxState({ status: 'AWAITING_SIGNATURE', failureCode: null, failureMessage: null });
         let signedXdr: string;
         try {
+          console.log('[addNode] Requesting signature from wallet...');
           signedXdr = await signTransaction(unsignedXdr, {
             networkPassphrase: NETWORK_PASSPHRASE,
             address: publicKey,
           });
-        } catch {
+          console.log('[addNode] Successfully signed XDR.');
+        } catch (signErr) {
+          console.log('[addNode] signTransaction error/rejected:', signErr);
           // User rejected or wallet error — graceful failure
           const failState: RegistryTxState = {
             status: 'FAILED',
@@ -387,15 +485,18 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
           broadcastPhase: 2,
         });
         const server = new rpc.Server(SOROBAN_RPC_URL);
+        console.log('[addNode] Submitting signed transaction to Soroban RPC...');
         // sendTransaction accepts base64 XDR string directly
         const submitResult = await server.sendTransaction(
           TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE)
         );
+        console.log('[addNode] sendTransaction response:', submitResult);
         if (submitResult.status === 'ERROR') {
+          const { failureCode, failureMessage } = extractSorobanSubmissionError(submitResult, 'addNode');
           const failState: RegistryTxState = {
             status: 'FAILED',
-            failureCode: 'UNKNOWN',
-            failureMessage: 'Transaction was rejected by the Soroban network.',
+            failureCode,
+            failureMessage,
           };
           setTxState(failState);
           return failState;
@@ -427,6 +528,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
         // Silently bail if component unmounted mid-poll
         if (err instanceof DOMException && err.name === 'AbortError') return;
 
+        console.log('[addNode] Unexpected caught error:', err);
         const failState: RegistryTxState = {
           status: 'FAILED',
           failureCode: 'UNKNOWN',
@@ -476,6 +578,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
 
         if (!res.ok) {
           const errorData: GatewayRegisterErrorResponse = await res.json();
+          console.log('[removeNode] API error response (!res.ok):', res.status, errorData);
           const classified = classifyError(errorData, res.status);
           const failState: RegistryTxState = {
             status: 'FAILED',
@@ -487,15 +590,19 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
         }
 
         const { unsignedXdr }: GatewayXdrResponse = await res.json();
+        console.log('[removeNode] Received unsignedXdr from API:', unsignedXdr);
         // ── AWAITING_SIGNATURE ──
         setTxState({ status: 'AWAITING_SIGNATURE', failureCode: null, failureMessage: null });
         let signedXdr: string;
         try {
+          console.log('[removeNode] Requesting signature from wallet...');
           signedXdr = await signTransaction(unsignedXdr, {
             networkPassphrase: NETWORK_PASSPHRASE,
             address: publicKey,
           });
-        } catch {
+          console.log('[removeNode] Successfully signed XDR.');
+        } catch (signErr) {
+          console.log('[removeNode] signTransaction error/rejected:', signErr);
           const failState: RegistryTxState = {
             status: 'FAILED',
             failureCode: 'AUTH_FAILED',
@@ -512,14 +619,17 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
           broadcastPhase: 2,
         });
         const server = new rpc.Server(SOROBAN_RPC_URL);
+        console.log('[removeNode] Submitting signed transaction to Soroban RPC...');
         const submitResult = await server.sendTransaction(
           TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE)
         );
+        console.log('[removeNode] sendTransaction response:', submitResult);
         if (submitResult.status === 'ERROR') {
+          const { failureCode, failureMessage } = extractSorobanSubmissionError(submitResult, 'removeNode');
           const failState: RegistryTxState = {
             status: 'FAILED',
-            failureCode: 'UNKNOWN',
-            failureMessage: 'Transaction was rejected by the Soroban network.',
+            failureCode,
+            failureMessage,
           };
           setTxState(failState);
           return failState;
@@ -549,6 +659,7 @@ export function useGatewayNodes(): UseGatewayNodesReturn {
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === 'AbortError') return;
 
+        console.log('[removeNode] Unexpected caught error:', err);
         const failState: RegistryTxState = {
           status: 'FAILED',
           failureCode: 'UNKNOWN',

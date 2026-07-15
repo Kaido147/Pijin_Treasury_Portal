@@ -38,7 +38,7 @@ function KpiCard({
   bgClass: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl p-4 shadow-card flex items-center gap-3">
+    <div className="bg-card rounded-2xl p-4 shadow-card flex items-center gap-3 border border-border/40">
       <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", bgClass)}>
         <Icon className={cn("w-4 h-4", colorClass)} />
       </div>
@@ -46,8 +46,8 @@ function KpiCard({
         <div className={cn("font-mono font-bold text-lg leading-tight truncate", colorClass)}>
           {value}
         </div>
-        <div className="text-slate-500 text-xs">{label}</div>
-        {sub && <div className="text-slate-400 text-[0.65rem]">{sub}</div>}
+        <div className="text-muted-foreground text-xs font-semibold">{label}</div>
+        {sub && <div className="text-muted-foreground/60 text-[0.65rem]">{sub}</div>}
       </div>
     </div>
   );
@@ -137,7 +137,7 @@ export default function LedgerPage() {
         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/60 pointer-events-none" />
             <input
               id="ledger-search-input"
               type="text"
@@ -146,7 +146,7 @@ export default function LedgerPage() {
                 setSearchQuery(e.target.value)
               }
               placeholder="Search hash, address, short ID…"
-              className="pl-8 pr-3 py-2 text-base lg:text-xs rounded-xl border border-border-default bg-white text-navy-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-900/20 w-full lg:w-52 shadow-card transition-all"
+              className="pl-8 pr-3 py-2 text-base lg:text-xs rounded-xl border border-border bg-card text-foreground placeholder-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20 w-full lg:w-52 shadow-card transition-all"
             />
           </div>
 
@@ -157,8 +157,8 @@ export default function LedgerPage() {
             className={cn(
               "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-card border",
               isLive
-                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                : "bg-white border-border-default text-slate-500 hover:bg-surface-raised",
+                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                : "bg-card border-border text-muted-foreground hover:bg-muted",
             )}
           >
             <Radio className={cn("w-3.5 h-3.5", isLive && "animate-pulse")} />
@@ -173,30 +173,30 @@ export default function LedgerPage() {
           label="Total Network Volume"
           value={formatTokenDisplay(summary.totalVolume)}
           icon={TrendingUp}
-          colorClass="text-green-600"
-          bgClass="bg-green-100"
+          colorClass="text-emerald-600 dark:text-emerald-400"
+          bgClass="bg-emerald-500/10 dark:bg-emerald-500/15"
         />
         <KpiCard
           label="Total Tolls Collected"
           value={formatTokenDisplay(summary.totalTolls)}
           icon={Zap}
-          colorClass="text-blue-600"
-          bgClass="bg-blue-100"
+          colorClass="text-blue-600 dark:text-blue-400"
+          bgClass="bg-blue-500/10 dark:bg-blue-500/15"
         />
         <KpiCard
           label="Active Gateways"
           value={String(summary.activeGateways)}
           sub={`${summary.totalEvents} total events`}
           icon={Network}
-          colorClass="text-purple-600"
-          bgClass="bg-purple-100"
+          colorClass="text-purple-600 dark:text-purple-400"
+          bgClass="bg-purple-500/10 dark:bg-purple-500/15"
         />
       </div>
 
       {/* ── Filter tabs + table ─────────────────────────────── */}
-      <div className="bg-white rounded-2xl overflow-hidden shadow-table">
+      <div className="bg-card rounded-2xl overflow-hidden shadow-table border border-border/40">
         {/* Filter bar */}
-        <div className="flex items-center gap-1 px-4 py-3 border-b border-surface-raised overflow-x-auto">
+        <div className="flex items-center gap-1 px-4 py-3 border-b border-border/60 overflow-x-auto">
           {FILTER_OPTIONS.map(({ value, label }) => (
             <button
               key={value}
@@ -205,21 +205,21 @@ export default function LedgerPage() {
               className={cn(
                 "px-3 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap",
                 filter === value
-                  ? "bg-navy-900 text-white"
-                  : "text-slate-500 hover:bg-surface",
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
               {label}
             </button>
           ))}
-          <div className="ml-auto text-slate-400 text-xs font-mono shrink-0">
+          <div className="ml-auto text-muted-foreground/60 text-xs font-mono shrink-0">
             {searchedActivities.length} shown
           </div>
         </div>
 
         {/* Table header (desktop) */}
         <div
-          className="hidden lg:grid px-6 py-2 bg-surface text-slate-400 text-[0.68rem] font-bold uppercase tracking-widest"
+          className="hidden lg:grid px-6 py-2.5 bg-muted/40 text-muted-foreground text-[0.68rem] font-bold uppercase tracking-widest border-b border-border/20"
           style={{ gridTemplateColumns: "28px 1fr auto auto auto" }}
         >
           <div />
@@ -243,18 +243,18 @@ export default function LedgerPage() {
 
         {/* Loading skeleton */}
         {isLoading && searchedActivities.length === 0 && (
-          <div className="divide-y divide-surface">
+          <div className="divide-y divide-border/40">
             {Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
                 className="flex items-center gap-3 px-6 py-4 animate-pulse"
               >
-                <div className="w-7 h-7 rounded-xl bg-slate-100 shrink-0" />
+                <div className="w-7 h-7 rounded-xl bg-muted shrink-0" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-3 bg-slate-100 rounded w-2/3" />
-                  <div className="h-2.5 bg-slate-100 rounded w-1/3" />
+                  <div className="h-3 bg-muted rounded w-2/3" />
+                  <div className="h-2.5 bg-muted rounded w-1/3" />
                 </div>
-                <div className="h-3 bg-slate-100 rounded w-16" />
+                <div className="h-3 bg-muted rounded w-16" />
               </div>
             ))}
           </div>
@@ -274,7 +274,7 @@ export default function LedgerPage() {
             />
           </div>
         ) : (
-          <div className="divide-y divide-surface">
+          <div className="divide-y divide-border/40">
             {searchedActivities.map((activity, idx) => (
               <ActivityRow
                 key={activity.id}
@@ -293,7 +293,7 @@ export default function LedgerPage() {
             <button
               id="load-more-btn"
               onClick={loadMore}
-              className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-navy-900 transition-colors"
+              className="px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
             >
               Load older events…
             </button>

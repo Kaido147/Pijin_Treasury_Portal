@@ -69,8 +69,14 @@ export default function GatewayOpsPage() {
   // No PIN involved. PIN belongs exclusively in the funding flow.
 
   const handleRegistration = async (data: { name: string; address: string; region: string }): Promise<void> => {
+    console.log('[GatewayOpsPage] Submitting node registration:', data);
     const result = await addNode(data);
+    console.log('[GatewayOpsPage] Registration result:', result);
     if (result?.status === 'FAILED') {
+      console.log('[GatewayOpsPage] Registration failed details:', {
+        code: result.failureCode,
+        message: result.failureMessage,
+      });
       toast.error(
         FAILURE_TITLES[result.failureCode ?? 'UNKNOWN'],
         { description: result.failureMessage ?? undefined },
@@ -81,8 +87,14 @@ export default function GatewayOpsPage() {
   };
 
   const handleRevoke = async (address: string) => {
+    console.log('[GatewayOpsPage] Submitting node revocation for address:', address);
     const result = await removeNode(address);
+    console.log('[GatewayOpsPage] Revoke result:', result);
     if (result?.status === 'FAILED') {
+      console.log('[GatewayOpsPage] Revoke failed details:', {
+        code: result.failureCode,
+        message: result.failureMessage,
+      });
       toast.error(
         FAILURE_TITLES[result.failureCode ?? 'UNKNOWN'],
         { description: result.failureMessage ?? undefined },
