@@ -2,44 +2,29 @@
 
 import { RefreshCw } from "lucide-react";
 import { useNetworkHealth } from "@/hooks/useNetworkHealth";
-import { useGatewayNodes } from "@/hooks/useGatewayNodes";
 import { useStellarWallet } from "@/hooks/useStellarWallet";
-import { useTreasuryBalance } from "@/hooks/useTreasuryBalance";
-import { STAT_ICON_MAP, XLM_TO_PHP_RATE } from "@/core/constants";
+import { STAT_ICON_MAP } from "@/core/constants";
 import { StatCard } from "@/components/domain/StatCard";
 import { WalletBalanceCard } from "@/components/domain/WalletBalanceCard";
 import { NetworkHealthPanel } from "@/components/domain/NetworkHealthPanel";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
 import { cn } from "@/core/utils";
-import type { WalletInfo } from "@/core/types";
 
 export default function CommandCenterPage() {
-  const { services, stats, isRefreshing, refresh, lastUpdated } =
-    useNetworkHealth();
-
-  const { activeNodes } = useGatewayNodes();
-
-  // Override 'Active Nodes' metric with live count from DB
-  const liveStats = stats.map((m) =>
-    m.label === 'Active Nodes'
-      ? { ...m, value: activeNodes.length.toString() }
-      : m,
-  );
+  const {
+    services,
+    relayers,
+    stats,
+    walletInfo,
+    warnings,
+    isLoading,
+    isRefreshing,
+    error,
+    refresh,
+    lastUpdated,
+  } = useNetworkHealth();
 
   const { isConnected } = useStellarWallet();
-  const { balance: treasuryBalanceStr, isLoading, error } = useTreasuryBalance();
-
-  const balanceNum = parseFloat(treasuryBalanceStr.replace(/,/g, '')) || 0;
-  const phpValue = balanceNum * XLM_TO_PHP_RATE;
-
-  const liveWalletInfo: WalletInfo = {
-    address: process.env.NEXT_PUBLIC_TREASURY_ADDRESS ?? '—',
-    balancePhp: `₱${phpValue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    balanceXlm: treasuryBalanceStr || '0.00',
-    change24h: '—',
-    fundedNodes: '—',
-    totalDistributed: '—',
-  };
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -66,7 +51,7 @@ export default function CommandCenterPage() {
       </div>
 
       <WalletBalanceCard
-        walletInfo={liveWalletInfo}
+        walletInfo={walletInfo}
         isConnected={isConnected}
         isLoading={isLoading}
         error={error}
@@ -74,9 +59,9 @@ export default function CommandCenterPage() {
 
       {/* KPI stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {isRefreshing
+        {isLoading
           ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
-          : liveStats.map((metric) => {
+          : stats.map((metric) => {
             const Icon = STAT_ICON_MAP[metric.iconName] ?? STAT_ICON_MAP["activity"];
             return (
               <StatCard
@@ -91,7 +76,11 @@ export default function CommandCenterPage() {
           })}
       </div>
 
-      <NetworkHealthPanel services={services} />
+      <NetworkHealthPanel
+        services={services}
+        relayers={relayers}
+        warnings={warnings}
+      />
     </div>
   );
 }

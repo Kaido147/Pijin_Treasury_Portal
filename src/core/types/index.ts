@@ -21,7 +21,8 @@ export interface WalletState {
 /** Wallet summary data displayed on the Command Center hero card */
 export interface WalletInfo {
   address: string;
-  balancePhp: string;
+  /** Exact PHPC trustline balance held by the treasury account. */
+  balancePhpc: string;
   balanceXlm: string;
   change24h: string;
   fundedNodes: string;
@@ -50,11 +51,10 @@ export interface GatewayNode {
   /** Slug key stored in DB (e.g. "SEA-01") — use for filtering, URL params, dropdown re-selection */
   regionSlug: string;
   status: NodeStatus;
-  uptime: string;
   balance: string;
 }
 
-// ─── Transactions ───────────────────────────────────────
+// ─── Transactions (legacy — wallet-centric view) ────────
 
 export type TxStatus = 'confirmed' | 'pending' | 'failed';
 export type TxType = 'debit' | 'credit';
@@ -71,13 +71,106 @@ export interface Transaction {
   ts: Date;
 }
 
+// ─── Contract Events (contract-centric ledger) ──────────
+//
+// Mirrors the 5 event structs emitted by the deployed
+// PijinContract (contracts/src/lib.rs):
+//   deposit  → DepositEvent
+//   spend    → SpendEvent
+//   withdraw → WithdrawEvent
+//   recipient / recipupd → RecipientEvent
+
+export type ActivityType =
+  | 'spend'
+  | 'deposit'
+  | 'withdraw'
+  | 'register_recipient'
+  | 'update_recipient';
+
+/** Filter type used by useContractLedger */
+export type ActivityFilter = ActivityType | 'all';
+
+interface BaseActivity {
+  /** Globally unique event ID from Stellar RPC (e.g. "0001234-0") */
+  id: string;
+  /** Parent transaction hash */
+  txHash: string;
+  /** Ledger sequence number — used as pagination cursor */
+  ledger: number;
+  /** Discriminated union tag */
+  type: ActivityType;
+  /** ISO 8601 ledger close time */
+  timestamp: string;
+}
+
+/** Mirrors SpendEvent struct (lib.rs L68-79) */
+export interface SpendActivity extends BaseActivity {
+  type: 'spend';
+  sender: string;          // G... strkey
+  gateway: string;         // G... strkey (whitelisted relayer)
+  token: string;           // C... contract strkey
+  receiver: string;        // G... resolved wallet address
+  receiverShortId: string; // 6-byte Base62 display string
+  amount: string;          // Stroops as decimal string (i128)
+  protocolToll: string;    // Stroops as decimal string (i128)
+  nonce: string;           // Hex-encoded 32-byte nonce
+  balance: string;         // Sender remaining vault balance
+}
+
+/** Mirrors DepositEvent struct (lib.rs L59-65) */
+export interface DepositActivity extends BaseActivity {
+  type: 'deposit';
+  sender: string;
+  token: string;
+  amount: string;
+  balance: string;         // New vault balance after deposit
+}
+
+/** Mirrors WithdrawEvent struct (lib.rs L88-94) */
+export interface WithdrawActivity extends BaseActivity {
+  type: 'withdraw';
+  sender: string;
+  token: string;
+  amount: string;
+}
+
+/** Mirrors RecipientEvent struct (lib.rs L82-86) — used for both register + update */
+export interface RecipientActivity extends BaseActivity {
+  type: 'register_recipient' | 'update_recipient';
+  shortId: string;   // 6-byte Base62 decoded
+  receiver: string;  // G... strkey
+}
+
+/** Discriminated union of all contract event types */
+export type NetworkActivity =
+  | SpendActivity
+  | DepositActivity
+  | WithdrawActivity
+  | RecipientActivity;
+
+/** BFF API response from /api/ledger/events */
+export interface LedgerEventsResponse {
+  events: NetworkActivity[];
+  /**
+   * ID of the oldest event in this page.
+   * Pass as `before=` on the next load-more request for keyset pagination.
+   * (Previously an opaque Stellar RPC cursor — now a Supabase event ID.)
+   */
+  cursor: string;
+  latestLedger: number;
+  oldestLedger: number;
+  /** Whether more historical events exist before the current set */
+  hasMore: boolean;
+}
+
 // ─── System Metrics ─────────────────────────────────────
 
 export interface StatMetric {
   label: string;
   value: string;
   delta: string;
-  positive: boolean;
+  /** Null means there is no prior live sample to compare yet. */
+  positive: boolean | null;
   /** Lucide icon identifier — mapped to a component via STAT_ICON_MAP */
   iconName: string;
 }
@@ -87,7 +180,44 @@ export type ServiceStatus = 'operational' | 'degraded' | 'down';
 export interface NetworkService {
   name: string;
   status: ServiceStatus;
-  uptime: number;
+  latencyMs: number | null;
+  detail: string;
+}
+
+export type RelayerReadinessStatus =
+  | 'ready'
+  | 'low_balance'
+  | 'unfunded'
+  | 'unauthorized'
+  | 'unavailable';
+
+/** On-chain readiness of a trusted gateway wallet (not device uptime). */
+export interface RelayerReadiness {
+  id: string;
+  name: string;
+  address: string;
+  status: RelayerReadinessStatus;
+  balanceXlm: string;
+  availableXlm: string;
+  minimumRequiredXlm: string;
+  detail: string;
+}
+
+export interface DashboardMetrics {
+  activeNodes: number;
+  distributedXlm: number | null;
+  distributedChangePct: number | null;
+  pendingTransactions: number | null;
+  avgLatencyMs: number | null;
+}
+
+export interface DashboardOverview {
+  walletInfo: WalletInfo;
+  metrics: DashboardMetrics;
+  services: NetworkService[];
+  relayers: RelayerReadiness[];
+  lastUpdated: string;
+  warnings: string[];
 }
 
 // ─── Fund Node / Transfer ───────────────────────────────

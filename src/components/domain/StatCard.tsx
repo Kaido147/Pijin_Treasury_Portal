@@ -6,7 +6,7 @@ interface StatCardProps {
   label: string;
   value: string;
   delta: string;
-  positive: boolean;
+  positive: boolean | null;
   icon: ElementType;
 }
 
@@ -26,18 +26,26 @@ export function StatCard({
         <div
           className={cn(
             'flex items-center gap-1 px-2 py-0.5 rounded-full',
-            positive ? 'bg-green-100' : 'bg-red-100',
+            positive === null
+              ? 'bg-slate-100'
+              : positive
+                ? 'bg-green-100'
+                : 'bg-red-100',
           )}
         >
-          {positive ? (
-            <ArrowUpRight className="w-3 h-3 text-green-600" />
-          ) : (
-            <ArrowDownRight className="w-3 h-3 text-red-600" />
+          {positive !== null && (
+            delta.trim().startsWith('-')
+              ? <ArrowDownRight className={cn('w-3 h-3', positive ? 'text-green-600' : 'text-red-600')} />
+              : <ArrowUpRight className={cn('w-3 h-3', positive ? 'text-green-600' : 'text-red-600')} />
           )}
           <span
             className={cn(
               'text-[0.7rem] font-bold',
-              positive ? 'text-green-600' : 'text-red-600',
+              positive === null
+                ? 'text-slate-500'
+                : positive
+                  ? 'text-green-600'
+                  : 'text-red-600',
             )}
           >
             {delta}

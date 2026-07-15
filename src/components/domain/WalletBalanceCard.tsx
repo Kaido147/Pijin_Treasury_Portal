@@ -1,5 +1,5 @@
 import type { WalletInfo } from '@/core/types';
-import { truncateAddress } from '@/core/utils';
+import { cn, truncateAddress } from '@/core/utils';
 
 interface WalletBalanceCardProps {
   walletInfo: WalletInfo;
@@ -52,7 +52,7 @@ export function WalletBalanceCard({
           ) : (
             <>
               <div className="font-mono font-bold text-5xl text-white leading-none tracking-tight">
-                {walletInfo.balancePhp}
+                {walletInfo.balancePhpc} PHPC
               </div>
               <div className="text-white/40 text-[0.85rem] mt-2">
                 {walletInfo.balanceXlm} XLM
@@ -65,7 +65,16 @@ export function WalletBalanceCard({
         <div className="pt-4 grid grid-cols-3 gap-2 text-center lg:flex lg:items-center lg:justify-between lg:text-left border-t border-white/10">
           <div>
             <div className="text-white/35 text-[0.68rem]">24h Change</div>
-            <div className="text-green-400 font-mono text-[0.9rem] font-medium">
+            <div
+              className={cn(
+                'font-mono text-[0.9rem] font-medium',
+                walletInfo.change24h.startsWith('-')
+                  ? 'text-red-400'
+                  : walletInfo.change24h === '—'
+                    ? 'text-white/50'
+                    : 'text-green-400',
+              )}
+            >
               {walletInfo.change24h}
             </div>
           </div>
