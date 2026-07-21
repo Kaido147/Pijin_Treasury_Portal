@@ -80,7 +80,11 @@ Offline payments flow from the **mobile app → SMS gateway → Vercel relayer �
     <tr>
       <td><code>/gateway-ops</code></td>
       <td><strong>Gateway Operations</strong></td>
+<<<<<<< HEAD
       <td>Register and revoke whitelisted Android SMS gateway nodes directly on the Soroban contract. Monitor live node telemetry (<code>active</code>, <code>offline</code>), uptime, and XLM balances. Fund nodes/gateways with native XLM.</td>
+=======
+      <td>Register and revoke whitelisted Android SMS gateway nodes directly on the Soroban contract. Monitor live node telemetry (<code>active</code>, <code>syncing</code>, <code>offline</code>), uptime, and XLM balances. Fund agent wallets with native XLM.</td>
+>>>>>>> ade46416b414429616a25e3cfca1612e4d79a63c
     </tr>
     <tr>
       <td><code>/ledger</code></td>
@@ -89,8 +93,13 @@ Offline payments flow from the **mobile app → SMS gateway → Vercel relayer �
     </tr>
     <tr>
       <td><code>/fund-node</code></td>
+<<<<<<< HEAD
       <td><strong>Node Funding</strong></td>
       <td>Distribute native XLM reserves to gateways and nodes to ensure they have enough XLM to pay for gas fees using the connected wallet via Freighter.</td>
+=======
+      <td><strong>Agent Liquidity</strong></td>
+      <td>Distribute native XLM reserves to authorized local cash-in agent nodes using the connected administrator wallet via Freighter.</td>
+>>>>>>> ade46416b414429616a25e3cfca1612e4d79a63c
     </tr>
     <tr>
       <td><code>/login</code></td>
