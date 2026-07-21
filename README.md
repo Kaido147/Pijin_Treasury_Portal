@@ -34,15 +34,15 @@ The **Pijin Treasury Portal** is the dedicated back-office command center built 
   <tbody>
     <tr>
       <td><strong>Treasury Monitoring</strong></td>
-      <td>Tracks the master administrator wallet balance in real time. Every offline transaction programmatically routes a flat <strong>₱0.50 infrastructure toll</strong> to the treasury wallet on-chain. Admins monitor incoming tolls, verify correct distribution, and ensure the XLM gas pool is adequately funded to sponsor future user transactions.</td>
+      <td>Tracks the treasury wallet balance in real time. Every offline transaction programmatically routes a flat <strong>₱0.50 infrastructure toll</strong> to the treasury wallet on-chain. Admins monitor incoming tolls, verify correct distribution, and ensure the XLM gas pool is adequately funded to sponsor future user transactions.</td>
     </tr>
     <tr>
       <td><strong>Gateway Management</strong></td>
-      <td>Registers and revokes authorized Android SMS gateway devices directly on the Soroban smart contract whitelist. Only whitelisted gateways can relay offline transactions to the blockchain. Admins monitor each node's live status (<code>active</code>, <code>syncing</code>, <code>offline</code>), uptime, and on-chain balance.</td>
+      <td>Registers and revokes authorized Android SMS gateway devices directly on the Soroban smart contract whitelist. Only whitelisted gateways can relay offline transactions to the blockchain. Admins monitor each node's live status (<code>active</code>, <code>offline</code>), uptime, and on-chain balance.</td>
     </tr>
     <tr>
-      <td><strong>Agent Liquidity Funding</strong></td>
-      <td>Distributes native XLM reserves to authorized local cash-in agent nodes across the network. Agents are on-the-ground operators who help users convert physical cash to digital PHPC stablecoins. This dashboard provides a direct transfer interface for the admin to top up agent wallets as needed.</td>
+      <td><strong>Node / Gateway Funding</strong></td>
+      <td>Distributes native XLM reserves to authorized gateways and nodes. This ensures these routing devices have enough XLM to cover transaction/gas fees when sponsoring and submitting offline transactions to the Stellar blockchain.</td>
     </tr>
     <tr>
       <td><strong>Live Transaction Ledger</strong></td>
@@ -80,7 +80,7 @@ Offline payments flow from the **mobile app → SMS gateway → Vercel relayer �
     <tr>
       <td><code>/gateway-ops</code></td>
       <td><strong>Gateway Operations</strong></td>
-      <td>Register and revoke whitelisted Android SMS gateway nodes directly on the Soroban contract. Monitor live node telemetry (<code>active</code>, <code>syncing</code>, <code>offline</code>), uptime, and XLM balances. Fund agent wallets with native XLM.</td>
+      <td>Register and revoke whitelisted Android SMS gateway nodes directly on the Soroban contract. Monitor live node telemetry (<code>active</code>, <code>offline</code>), uptime, and XLM balances. Fund nodes/gateways with native XLM.</td>
     </tr>
     <tr>
       <td><code>/ledger</code></td>
@@ -89,8 +89,8 @@ Offline payments flow from the **mobile app → SMS gateway → Vercel relayer �
     </tr>
     <tr>
       <td><code>/fund-node</code></td>
-      <td><strong>Agent Liquidity</strong></td>
-      <td>Distribute native XLM reserves to authorized local cash-in agent nodes using the connected administrator wallet via Freighter.</td>
+      <td><strong>Node Funding</strong></td>
+      <td>Distribute native XLM reserves to gateways and nodes to ensure they have enough XLM to pay for gas fees using the connected wallet via Freighter.</td>
     </tr>
     <tr>
       <td><code>/login</code></td>
