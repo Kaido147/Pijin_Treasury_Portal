@@ -7,7 +7,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 
 import { loginSchema, type LoginFormValues } from "@/core/validators/auth";
-import { createClient } from "@/infrastructure/supabase/client";
 
 import {
   Form,
@@ -39,16 +38,20 @@ export function LoginForm() {
   const { isSubmitting } = form.formState;
 
   async function onSubmit(values: LoginFormValues) {
-    const supabase = createClient();
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email: values.email,
-      password: values.password,
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: values.email,
+        password: values.password,
+        keepSignedIn,
+      }),
     });
 
-    if (error) {
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
       form.setError("root", {
-        message: error.message,
+        message: body?.error ?? "Sign in failed",
       });
       return;
     }

@@ -17,7 +17,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { fetchStellarBalance } from '@/infrastructure/stellar/horizon';
-import { createServiceClient } from '@/infrastructure/supabase/server';
+import { getSql } from '@/infrastructure/db/sql';
 
 /** Re-sync balance if older than this threshold (60 seconds) */
 export const BALANCE_STALE_THRESHOLD_MS = 60_000;
@@ -56,18 +56,12 @@ async function syncSingleNodeBalance(nodeId: string, address: string): Promise<v
     // Parse to numeric for DB storage (strip locale formatting like commas)
     const numericBalance = parseFloat(balance.replace(/,/g, '')) || 0;
 
-    const supabase = createServiceClient();
-    const { error } = await supabase
-      .from('nodes')
-      .update({
-        balance: numericBalance,
-        last_synced_at: new Date().toISOString(),
-      })
-      .eq('id', nodeId);
-
-    if (error) {
-      console.error(`[BalanceSync] DB write failed for node ${nodeId}:`, error.message);
-    }
+    const sql = getSql();
+    await sql`
+      UPDATE public.nodes
+      SET balance = ${numericBalance}, last_synced_at = now()
+      WHERE id = ${nodeId}::uuid
+    `;
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       console.warn(`[BalanceSync] Horizon timeout for node ${nodeId} (${address})`);

@@ -7,7 +7,8 @@ import {
     Asset,
     rpc,
 } from '@stellar/stellar-sdk';
-import { createServiceClient, createClient } from '@/infrastructure/supabase/server';
+import { getSql } from '@/infrastructure/db/sql';
+import { getPortalUser } from '@/infrastructure/auth/session';
 import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 
@@ -71,12 +72,10 @@ async function verifyPin(pin: string, storedHash: string, saltHex: string): Prom
 
 export async function POST(request: Request) {
     try {
-        // ── Gate 1: Supabase session ──
-        const userClient = await createClient();
-        const { data: { user }, error: userError } = await userClient.auth.getUser();
-        if (userError || !user) {
+        const user = await getPortalUser();
+        if (!user) {
             return NextResponse.json(
-                { error: 'Supabase session invalid or expired.' },
+                { error: 'Sign-in session invalid or expired.' },
                 { status: 401 },
             );
         }
@@ -143,14 +142,16 @@ export async function POST(request: Request) {
         }
 
         // ── Gate 3: PIN verification ──
-        const supabase = createServiceClient();
-        const { data: adminRecord, error: adminError } = await supabase
-            .from('admin')
-            .select('id, pin_hash, pin_salt')
-            .eq('stellar_address', adminAddress)
-            .single();
+        const sql = getSql();
+        const adminRows = await sql`
+            SELECT id, pin_hash, pin_salt
+            FROM public.admin
+            WHERE stellar_address = ${adminAddress}
+            LIMIT 1
+        `;
+        const adminRecord = adminRows[0] as { id: string; pin_hash: string | null; pin_salt: string | null } | undefined;
 
-        if (adminError || !adminRecord) {
+        if (!adminRecord) {
             return NextResponse.json(
                 { error: 'Admin profile not found.' },
                 { status: 404 },
@@ -223,20 +224,29 @@ export async function POST(request: Request) {
 
         // Best-effort telemetry. The transaction has already been accepted by
         // Stellar, so a dashboard tracking failure must never fail the payment.
-        const { error: trackingError } = await supabase
-            .from('treasury_transfers')
-            .upsert({
-                tx_hash: submitResult.hash,
-                destination,
-                asset_code: 'XLM',
-                amount: amountNum.toFixed(7),
-                status: 'pending',
-                submitted_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-            }, { onConflict: 'tx_hash' });
-
-        if (trackingError) {
-            console.error('Treasury transfer telemetry insert failed:', trackingError.message);
+        try {
+            await sql`
+                INSERT INTO public.treasury_transfers (
+                    tx_hash, destination, asset_code, amount, status, submitted_at, updated_at
+                )
+                VALUES (
+                    ${submitResult.hash},
+                    ${destination},
+                    'XLM',
+                    ${amountNum.toFixed(7)},
+                    'pending',
+                    now(),
+                    now()
+                )
+                ON CONFLICT (tx_hash) DO UPDATE
+                SET destination = EXCLUDED.destination,
+                    asset_code = EXCLUDED.asset_code,
+                    amount = EXCLUDED.amount,
+                    status = EXCLUDED.status,
+                    updated_at = now()
+            `;
+        } catch (trackingError) {
+            console.error('Treasury transfer telemetry insert failed:', trackingError);
         }
 
         return NextResponse.json(

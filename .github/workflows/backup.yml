@@ -1,4 +1,4 @@
-name: Pijin Supabase Backup
+name: Pijin Neon Backup
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ jobs:
     permissions:
       contents: write
     env:
-      supabase_db_url: ${{ secrets.SUPABASE_DB_URL }}   # For example: postgresql://postgres:[YOUR-PASSWORD]@db.<ref>.supabase.co:5432/postgres
+      neon_db_url: ${{ secrets.DATABASE_URL }}   # For example: postgresql://postgres:[YOUR-PASSWORD]@db.<ref>.supabase.co:5432/postgres
       backup_enabled: ${{ vars.BACKUP_ENABLED }}
     steps:
     - name: Check the backup condition
@@ -25,13 +25,13 @@ jobs:
 
     - name: Setup Supabase CLI
       if: env.backup_enabled == 'true'
-      uses: supabase/setup-cli@v1
+      uses: neon-io/setup-cli@v1
       with:
         version: latest
     # Begin the Backup Operation
     - name: Backup roles
       if: env.backup_enabled == 'true'
-      run: supabase db dump --db-url "$supabase_db_url" -f roles.sql --role-only
+      run: neon db dump --db-url "$neon_db_url" -f roles.sql --role-only
       
     - name: Backup schema
       if: env.backup_enabled == 'true'

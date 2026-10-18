@@ -11,6 +11,7 @@
   "dependencies": {
     "@creit-tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@^2.4.0",
     "@hookform/resolvers": "^5.4.0",
+    "@neondatabase/serverless": "^1.2.0",
     "@radix-ui/react-accordion": "1.2.3",
     "@radix-ui/react-alert-dialog": "1.1.6",
     "@radix-ui/react-aspect-ratio": "1.1.2",
@@ -38,8 +39,7 @@
     "@radix-ui/react-toggle-group": "1.1.2",
     "@radix-ui/react-tooltip": "1.1.8",
     "@stellar/stellar-sdk": "^16.0.0",
-    "@supabase/ssr": "^0.12.0",
-    "@supabase/supabase-js": "^2.108.2",
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "cmdk": "1.1.1",
@@ -65,6 +65,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.12",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "22.15.29",
     "@types/react": "18.3.23",
     "@types/react-dom": "18.3.7",

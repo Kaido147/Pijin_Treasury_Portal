@@ -4,7 +4,7 @@
 // SERVER-ONLY module — never import from client code.
 //
 // Polls Stellar RPC for new contract events and upserts them
-// into the Supabase `contract_events` table.
+// into the Neon `contract_events` table.
 //
 // Cursor persistence: the opaque Stellar RPC cursor string is
 // stored in `indexer_state` (key = 'contract_events_cursor').
@@ -18,7 +18,7 @@
 
 import { rpc } from '@stellar/stellar-sdk';
 import { decodeContractEvent } from './event-decoder';
-import { createServiceClient } from '@/infrastructure/supabase/server';
+import { getSql } from '@/infrastructure/db/sql';
 import type { NetworkActivity, SpendActivity, DepositActivity, WithdrawActivity } from '@/core/types';
 
 // ─── Constants ───────────────────────────────────────────
@@ -168,7 +168,7 @@ function toDbRow(event: NetworkActivity): ContractEventRow {
 // ─── Public API ──────────────────────────────────────────
 
 export interface IndexerResult {
-  /** Number of new events written to Supabase in this run */
+  /** Number of new events written to Neon in this run */
   indexed: number;
   /** Latest Stellar RPC cursor after this run (null if unchanged) */
   cursor: string | null;
@@ -189,23 +189,18 @@ export async function runIndexer(): Promise<IndexerResult> {
   const rpcUrl     = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL
                      ?? 'https://soroban-testnet.stellar.org';
 
-  const supabase = createServiceClient();
+  const sql = getSql();
   const server   = new rpc.Server(rpcUrl, { allowHttp: false });
 
   // ── 1. Read current cursor ────────────────────────────
-  const { data: stateRow, error: stateErr } = await supabase
-    .from('indexer_state')
-    .select('value')
-    .eq('key', CURSOR_KEY)
-    .single();
+  const stateRows = await sql`
+    SELECT value
+    FROM public.indexer_state
+    WHERE key = ${CURSOR_KEY}
+    LIMIT 1
+  `;
 
-  if (stateErr && stateErr.code !== 'PGRST116') {
-    // PGRST116 = row not found (table exists but row missing — seed wasn't run)
-    console.error('[event-indexer] Failed to read cursor:', stateErr.message);
-    throw new Error(stateErr.message);
-  }
-
-  const currentCursor: string | null = stateRow?.value ?? null;
+  const currentCursor: string | null = (stateRows[0]?.value as string | undefined) ?? null;
 
   // ── 2. Fetch from Stellar RPC ─────────────────────────
   let rpcResponse: rpc.Api.GetEventsResponse;
@@ -248,23 +243,41 @@ export async function runIndexer(): Promise<IndexerResult> {
   if (decoded.length > 0) {
     const rows = decoded.map(toDbRow);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: upsertErr } = await supabase
-      .from('contract_events')
-      .upsert(rows as any[], { onConflict: 'id', ignoreDuplicates: true });
+    const payload = JSON.stringify(rows.map((row) => ({
+      ...row,
+      event_timestamp: row.timestamp,
+    })));
 
-    if (upsertErr) {
-      console.error('[event-indexer] Upsert error:', upsertErr.message);
-      throw new Error(upsertErr.message);
-    }
+    await sql`
+      INSERT INTO public.contract_events (
+        id, tx_hash, ledger, type, "timestamp", payload, sender, gateway, amount, receiver_short_id
+      )
+      SELECT
+        id, tx_hash, ledger, type, event_timestamp, payload, sender, gateway, amount, receiver_short_id
+      FROM jsonb_to_recordset(${payload}::jsonb) AS x(
+        id text,
+        tx_hash text,
+        ledger integer,
+        type text,
+        event_timestamp timestamptz,
+        payload jsonb,
+        sender text,
+        gateway text,
+        amount text,
+        receiver_short_id text
+      )
+      ON CONFLICT (id) DO NOTHING
+    `;
   }
 
   // ── 4. Persist new cursor ─────────────────────────────
   if (newCursor && newCursor !== currentCursor) {
-    await supabase
-      .from('indexer_state')
-      .update({ value: newCursor, updated_at: new Date().toISOString() })
-      .eq('key', CURSOR_KEY);
+    await sql`
+      INSERT INTO public.indexer_state (key, value, updated_at)
+      VALUES (${CURSOR_KEY}, ${newCursor}, now())
+      ON CONFLICT (key) DO UPDATE
+      SET value = EXCLUDED.value, updated_at = now()
+    `;
   }
 
   console.info(
