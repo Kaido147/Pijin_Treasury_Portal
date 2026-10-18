@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateSession } from '@/infrastructure/supabase/middleware'
+import { PORTAL_SESSION_COOKIE, readPortalUserFromToken } from '@/infrastructure/auth/session'
 
 // ═══════════════════════════════════════════════════════════
 // Route Definitions
@@ -49,8 +49,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Refresh Supabase session and sync cookies
-  const { user, supabaseResponse } = await updateSession(request)
+  const user = await readPortalUserFromToken(
+    request.cookies.get(PORTAL_SESSION_COOKIE)?.value,
+  )
 
   // Check if current path is public
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname === route)
@@ -75,10 +76,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // IMPORTANT: Always return supabaseResponse, not NextResponse.next().
-  // supabaseResponse carries the refreshed cookie headers.
-  // Returning a plain NextResponse.next() would discard them.
-  return supabaseResponse
+  return NextResponse.next()
 }
 
 // ═══════════════════════════════════════════════════════════

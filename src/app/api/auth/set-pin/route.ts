@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createServiceClient, createClient } from '@/infrastructure/supabase/server';
+import { getSql } from '@/infrastructure/db/sql';
+import { getPortalUser } from '@/infrastructure/auth/session';
 import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 
@@ -47,12 +48,10 @@ function generateSalt(): string {
 
 export async function POST(request: Request) {
     try {
-        // ── Gate 1: Supabase session ──
-        const userClient = await createClient();
-        const { data: { user }, error: userError } = await userClient.auth.getUser();
-        if (userError || !user) {
+        const user = await getPortalUser();
+        if (!user) {
             return NextResponse.json(
-                { error: 'Supabase session invalid or expired. Please log in again.' },
+                { error: 'Sign-in session invalid or expired. Please log in again.' },
                 { status: 401 },
             );
         }
@@ -88,16 +87,12 @@ export async function POST(request: Request) {
         const hash = await hashPin(pin, salt);
 
         // ── Persist to admin table ──
-        const supabase = createServiceClient();
-        const { error: updateError } = await supabase
-            .from('admin')
-            .update({ pin_hash: hash, pin_salt: salt })
-            .eq('stellar_address', adminAddress);
-
-        if (updateError) {
-            console.error('set-pin DB error:', updateError);
-            return NextResponse.json({ error: updateError.message }, { status: 500 });
-        }
+        const sql = getSql();
+        await sql`
+            UPDATE public.admin
+            SET pin_hash = ${hash}, pin_salt = ${salt}
+            WHERE stellar_address = ${adminAddress}
+        `;
 
         return NextResponse.json({ success: true });
     } catch (error) {

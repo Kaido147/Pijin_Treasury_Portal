@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { rpc } from '@stellar/stellar-sdk';
-import { createServiceClient } from '@/infrastructure/supabase/server';
+import { getSql } from '@/infrastructure/db/sql';
 import type {
   DashboardOverview,
   NetworkService,
@@ -262,45 +262,46 @@ async function reconcilePendingTransfers(): Promise<{
   pending: number | null;
   warning?: string;
 }> {
-  const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from('treasury_transfers')
-    .select('tx_hash, submitted_at')
-    .eq('status', 'pending');
+  try {
+    const sql = getSql();
+    const data = await sql`
+      SELECT tx_hash
+      FROM public.treasury_transfers
+      WHERE status = 'pending'
+    `;
 
-  if (error) {
-    return { pending: null, warning: `Transaction telemetry unavailable: ${error.message}` };
-  }
+    const server = new rpc.Server(RPC_URL);
+    let pending = 0;
 
-  const server = new rpc.Server(RPC_URL);
-  let pending = 0;
-
-  await Promise.all((data ?? []).map(async (row) => {
-    try {
-      const result = await server.getTransaction(row.tx_hash);
-      if (result.status === rpc.Api.GetTransactionStatus.SUCCESS) {
-        await supabase
-          .from('treasury_transfers')
-          .update({
-            status: 'confirmed',
-            confirmed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('tx_hash', row.tx_hash);
-      } else if (result.status === rpc.Api.GetTransactionStatus.FAILED) {
-        await supabase
-          .from('treasury_transfers')
-          .update({ status: 'failed', updated_at: new Date().toISOString() })
-          .eq('tx_hash', row.tx_hash);
-      } else {
+    await Promise.all(data.map(async (row) => {
+      const txHash = row.tx_hash as string;
+      try {
+        const result = await server.getTransaction(txHash);
+        if (result.status === rpc.Api.GetTransactionStatus.SUCCESS) {
+          await sql`
+            UPDATE public.treasury_transfers
+            SET status = 'confirmed', confirmed_at = now(), updated_at = now()
+            WHERE tx_hash = ${txHash}
+          `;
+        } else if (result.status === rpc.Api.GetTransactionStatus.FAILED) {
+          await sql`
+            UPDATE public.treasury_transfers
+            SET status = 'failed', updated_at = now()
+            WHERE tx_hash = ${txHash}
+          `;
+        } else {
+          pending += 1;
+        }
+      } catch {
         pending += 1;
       }
-    } catch {
-      pending += 1;
-    }
-  }));
+    }));
 
-  return { pending };
+    return { pending };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { pending: null, warning: `Transaction telemetry unavailable: ${message}` };
+  }
 }
 
 function buildRelayerReadiness(
@@ -367,18 +368,21 @@ function buildRelayerReadiness(
 export async function GET() {
   try {
     const treasuryAddress = requireEnv('NEXT_PUBLIC_TREASURY_ADDRESS');
-    const supabase = createServiceClient();
+    const sql = getSql();
     const warnings: string[] = [];
 
-    const [nodeResult, horizonProbe, rpcService, pendingResult] = await Promise.all([
-      supabase.from('nodes').select('id, name, stellar_address, status').order('name'),
+    const [nodeRows, horizonProbe, rpcService, pendingResult] = await Promise.all([
+      sql`
+        SELECT id, name, stellar_address, status
+        FROM public.nodes
+        ORDER BY name ASC
+      `,
       probeHorizon(),
       probeRpc(),
       reconcilePendingTransfers(),
     ]);
 
-    if (nodeResult.error) throw new Error(nodeResult.error.message);
-    const nodes = (nodeResult.data ?? []) as StoredNode[];
+    const nodes = nodeRows as StoredNode[];
     const activeNodeRecords = nodes.filter((node) => node.status === 'active');
     if (pendingResult.warning) warnings.push(pendingResult.warning);
 

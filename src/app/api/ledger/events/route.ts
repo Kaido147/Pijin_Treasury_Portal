@@ -3,7 +3,7 @@
 //
 // GET /api/ledger/events
 //
-// Reads from Supabase `contract_events` table — NOT from
+// Reads from the Neon `contract_events` table — NOT from
 // Stellar RPC. XDR decoding and RPC polling are handled by
 // the separate /api/ledger/index route (the indexer).
 //
@@ -29,7 +29,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/infrastructure/supabase/server';
+import { getSql } from '@/infrastructure/db/sql';
 import type { LedgerEventsResponse, NetworkActivity } from '@/core/types';
 
 // ─── Constants ───────────────────────────────────────────
@@ -65,57 +65,29 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       MAX_LIMIT,
     );
 
-    const supabase = createServiceClient();
+    const sql = getSql();
+    const eventType = typeParam && VALID_TYPES.has(typeParam) ? typeParam : null;
+    const beforeId = beforeParam || null;
+    // Escape % and _ so user input cannot widen the ILIKE pattern.
+    const searchPattern = searchParam
+      ? `%${searchParam.replace(/[%_\\]/g, '\\$&')}%`
+      : null;
 
-    // ── Build Supabase query ──────────────────────────────
-    //
-    // Select: id + payload (full decoded event) + ledger (for KPIs).
-    // Order: id DESC → newest Stellar events first.
-    // Fetch limit+1 to detect hasMore without a COUNT(*) call.
-
-    let query = supabase
-      .from('contract_events')
-      .select('id, payload, ledger')
-      .order('id', { ascending: false })
-      .limit(limit + 1);
-
-    // Server-side type filter (skips JSONB operators — uses text column)
-    if (typeParam && VALID_TYPES.has(typeParam)) {
-      query = query.eq('type', typeParam);
-    }
-
-    // Server-side freetext search across denormalised text columns
-    if (searchParam) {
-      // Escape % and _ to prevent unintended ILIKE wildcards in user input
-      const escaped = searchParam.replace(/[%_\\]/g, '\\$&');
-      query = query.or(
-        [
-          `tx_hash.ilike.%${escaped}%`,
-          `sender.ilike.%${escaped}%`,
-          `receiver_short_id.ilike.%${escaped}%`,
-          `gateway.ilike.%${escaped}%`,
-        ].join(','),
-      );
-    }
-
-    // Keyset pagination — events older (smaller ID) than the cursor
-    if (beforeParam) {
-      query = query.lt('id', beforeParam);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('[api/ledger/events] DB error:', error.message);
-      const fallback: LedgerEventsResponse = {
-        events: [], cursor: '', latestLedger: 0, oldestLedger: 0, hasMore: false,
-      };
-      return NextResponse.json({ ...fallback, error: error.message }, { status: 500 });
-    }
-
-    // ── Shape response ────────────────────────────────────
-
-    const rows       = data ?? [];
+    const rows = await sql`
+      SELECT id, payload, ledger
+      FROM public.contract_events
+      WHERE (${eventType}::text IS NULL OR type = ${eventType})
+        AND (${beforeId}::text IS NULL OR id < ${beforeId})
+        AND (
+          ${searchPattern}::text IS NULL
+          OR tx_hash ILIKE ${searchPattern} ESCAPE '\\'
+          OR sender ILIKE ${searchPattern} ESCAPE '\\'
+          OR receiver_short_id ILIKE ${searchPattern} ESCAPE '\\'
+          OR gateway ILIKE ${searchPattern} ESCAPE '\\'
+        )
+      ORDER BY id DESC
+      LIMIT ${limit + 1}
+    `;
     const hasMore    = rows.length > limit;
     const pageRows   = hasMore ? rows.slice(0, limit) : rows;
 

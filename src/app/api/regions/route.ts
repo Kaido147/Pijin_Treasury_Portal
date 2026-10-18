@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createServiceClient, createClient } from '@/infrastructure/supabase/server';
+import { getSql, postgresErrorCode } from '@/infrastructure/db/sql';
+import { getPortalUser } from '@/infrastructure/auth/session';
 import type { Region } from '@/core/types';
 
 // ═══════════════════════════════════════════════════════════
@@ -8,36 +9,30 @@ import type { Region } from '@/core/types';
 
 export async function GET() {
     try {
-        const supabase = await createServiceClient();
+        const sql = getSql();
+        const data = await sql`
+            SELECT id, slug, name
+            FROM public.regions
+            ORDER BY slug ASC
+        `;
 
-        const { data, error } = await supabase
-            .from('regions')
-            .select('id, slug, name')
-            .order('slug', { ascending: true });
-
-        if (error) {
-            console.error('database error:', error);
-            return NextResponse.json({ error: error.message }, { status: 500 });
-        }
-
-        return NextResponse.json((data ?? []) as Region[]);
+        return NextResponse.json(data as Region[]);
     } catch (error) {
         console.error(error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        const message = error instanceof Error ? error.message : 'Internal server error';
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }
 
 // ═══════════════════════════════════════════════════════════
-// POST — Insert a new region (Supabase session auth only)
+// POST — Insert a new region (sign-in session required)
 // ═══════════════════════════════════════════════════════════
 
 export async function POST(request: Request) {
     try {
-        // Gate: Supabase identity check
-        const userClient = await createClient();
-        const { data: { user }, error: userError } = await userClient.auth.getUser();
+        const user = await getPortalUser();
 
-        if (userError || !user) {
+        if (!user) {
             return NextResponse.json(
                 { error: 'Unauthorized. Please log in.' },
                 { status: 401 },
@@ -53,29 +48,27 @@ export async function POST(request: Request) {
             );
         }
 
-        const supabase = await createServiceClient();
+        const sql = getSql();
 
-        const { data, error } = await supabase
-            .from('regions')
-            .insert({ slug: body.slug.trim(), name: body.name.trim() })
-            .select('id, slug, name')
-            .single();
-
-        if (error) {
-            // Unique constraint violation → duplicate slug
-            if (error.code === '23505') {
+        try {
+            const rows = await sql`
+                INSERT INTO public.regions (slug, name)
+                VALUES (${body.slug.trim()}, ${body.name.trim()})
+                RETURNING id, slug, name
+            `;
+            return NextResponse.json(rows[0] as Region, { status: 201 });
+        } catch (error) {
+            if (postgresErrorCode(error) === '23505') {
                 return NextResponse.json(
                     { error: `Region slug "${body.slug}" already exists.` },
                     { status: 409 },
                 );
             }
-            console.error('database error:', error);
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            throw error;
         }
-
-        return NextResponse.json(data as Region, { status: 201 });
     } catch (error) {
         console.error(error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        const message = error instanceof Error ? error.message : 'Internal server error';
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }

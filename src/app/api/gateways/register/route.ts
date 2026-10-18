@@ -6,7 +6,8 @@ import {
     humanizeEvents,
     rpc,
 } from '@stellar/stellar-sdk';
-import { createServiceClient, createClient } from '@/infrastructure/supabase/server';
+import { getSql } from '@/infrastructure/db/sql';
+import { getPortalUser } from '@/infrastructure/auth/session';
 import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 import { inspect } from 'node:util';
@@ -41,11 +42,10 @@ type StoredGatewayNode = {
     /** FK to regions.id — replaces the old denormalized region slug text */
     region_id: string;
     /**
-     * Joined from regions table via region_id FK.
-     * Supabase PostgREST returns FK joins as arrays even for many-to-one
-     * relations — we take the first element.
+     * Joined from regions via region_id.
+     * Kept as an object or a one-element array so older rows still map.
      */
-    regions: Array<{ id: string; slug: string; name: string }> | null;
+    regions: Array<{ id: string; slug: string; name: string }> | { id: string; slug: string; name: string } | null;
     status: NodeStatus | null;
     /** Cached XLM balance from the background sync worker. Null if never synced. */
     balance: number | null;
@@ -67,7 +67,6 @@ function mapStoredNode(node: StoredGatewayNode): GatewayNode {
         ? node.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
         : '0.00';
 
-    // Supabase returns joined rows as an array — take the first element.
     const regionRow = Array.isArray(node.regions) ? node.regions[0] : node.regions;
 
     return {
@@ -115,20 +114,18 @@ function formatSimulationEvents(events: rpc.Api.SimulateTransactionErrorResponse
 /**
  * Verifies BOTH security gates for mutating API operations.
  *
- * Gate 1: Supabase Auth session (sb-access-token cookie)
+ * Gate 1: Portal sign-in cookie
  * Gate 2: Stellar wallet JWT (admin_session cookie)
  *
  * Returns adminAddress on success, or NextResponse error on failure.
  */
 async function verifyDualGates() {
-    // ── GATE 1: Supabase Identity Check ──
-    const userClient = await createClient();
-    const { data: { user }, error: userError } = await userClient.auth.getUser();
+    const user = await getPortalUser();
 
-    if (userError || !user) {
+    if (!user) {
         return {
             error: NextResponse.json(
-                { error: 'Supabase session invalid or expired. Please log in again.' },
+                { error: 'Sign-in session invalid or expired. Please log in again.' },
                 { status: 401 }
             )
         };
@@ -166,8 +163,6 @@ async function verifyDualGates() {
 
 export async function POST(request: Request) {
     try {
-        const supabase = await createServiceClient();
-
         // Dual-gate auth
         const auth = await verifyDualGates();
         if ('error' in auth) return auth.error;
@@ -182,14 +177,15 @@ export async function POST(request: Request) {
             );
         }
 
-        // Verify admin exists in DB
-        const { data: admin, error: adminError } = await supabase
-            .from('admin')
-            .select('id')
-            .eq('stellar_address', adminAddress)
-            .single();
+        const sql = getSql();
+        const adminRows = await sql`
+            SELECT id
+            FROM public.admin
+            WHERE stellar_address = ${adminAddress}
+            LIMIT 1
+        `;
 
-        if (adminError || !admin) {
+        if (adminRows.length === 0) {
             return NextResponse.json({ error: 'admin profile not found' }, { status: 404 });
         }
 
@@ -275,20 +271,39 @@ export async function POST(request: Request) {
 
 export async function GET() {
     try {
-        const supabase = createServiceClient();
+        const sql = getSql();
 
-        // ── Query Read: JOIN regions for human-readable name ──
-        const { data, error } = await supabase
-            .from('nodes')
-            .select('id, name, stellar_address, region_id, regions(id, slug, name), status, balance, last_synced_at')
-            .order('name', { ascending: true });
+        const data = await sql`
+            SELECT
+                n.id,
+                n.name,
+                n.stellar_address,
+                n.region_id,
+                CASE
+                    WHEN r.id IS NULL THEN NULL
+                    ELSE json_build_object('id', r.id, 'slug', r.slug, 'name', r.name)
+                END AS regions,
+                n.status,
+                n.balance,
+                n.last_synced_at
+            FROM public.nodes n
+            LEFT JOIN public.regions r ON r.id = n.region_id
+            ORDER BY n.name ASC
+        `;
 
-        if (error) {
-            console.error('[GatewayRegister] database error:', error);
-            return NextResponse.json({ error: error.message }, { status: 500 });
-        }
-
-        const rawNodes = (data ?? []) as unknown as StoredGatewayNode[];
+        const rawNodes = data.map((row) => {
+            const joined = typeof row.regions === 'string'
+                ? JSON.parse(row.regions)
+                : row.regions;
+            return {
+                ...row,
+                regions: joined,
+                balance: row.balance == null ? null : Number(row.balance),
+                last_synced_at: row.last_synced_at instanceof Date
+                    ? row.last_synced_at.toISOString()
+                    : (row.last_synced_at as string | null),
+            };
+        }) as StoredGatewayNode[];
 
         // ── SWR Stale Check: find nodes that need a balance refresh ──
         const staleNodes = rawNodes.filter((n) => isBalanceStale(n.last_synced_at));
@@ -414,8 +429,6 @@ export async function DELETE(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
     try {
-        const supabase = await createServiceClient();
-
         // Dual-gate auth
         const auth = await verifyDualGates();
         if ('error' in auth) return auth.error;
@@ -508,34 +521,38 @@ export async function PATCH(request: NextRequest) {
             );
         }
 
-        // ── All gates passed — write to Supabase ──
+        // ── All gates passed — write to Neon ──
+        const sql = getSql();
         if (body.action === 'register') {
-            const { data: adminRecord, error: adminError } = await supabase
-                .from('admin')
-                .select('id')
-                .eq('stellar_address', adminAddress)
-                .single();
+            const adminRows = await sql`
+                SELECT id
+                FROM public.admin
+                WHERE stellar_address = ${adminAddress}
+                LIMIT 1
+            `;
+            const adminRecord = adminRows[0] as { id: string } | undefined;
 
-            if (adminError || !adminRecord) {
+            if (!adminRecord) {
                 return NextResponse.json({ error: 'admin profile not found' }, { status: 404 });
             }
 
-            // Read-Then-Write: avoids 42P10 missing unique constraint on upsert
-            const { data: existingNode } = await supabase
-                .from('nodes')
-                .select('id')
-                .eq('stellar_address', onChainGatewayAddress)
-                .maybeSingle();
+            const existingRows = await sql`
+                SELECT id
+                FROM public.nodes
+                WHERE stellar_address = ${onChainGatewayAddress}
+                LIMIT 1
+            `;
 
-            // Resolve region_id from slug (body.region carries the slug value)
             const regionSlug = body.region || 'UNKNOWN';
-            const { data: regionRow, error: regionErr } = await supabase
-                .from('regions')
-                .select('id')
-                .eq('slug', regionSlug)
-                .maybeSingle();
+            const regionRows = await sql`
+                SELECT id
+                FROM public.regions
+                WHERE slug = ${regionSlug}
+                LIMIT 1
+            `;
+            const regionRow = regionRows[0] as { id: string } | undefined;
 
-            if (regionErr || !regionRow) {
+            if (!regionRow) {
                 return NextResponse.json(
                     { error: `Region slug "${regionSlug}" not found in regions table.` },
                     { status: 400 },
@@ -543,51 +560,44 @@ export async function PATCH(request: NextRequest) {
             }
 
             const resolvedRegionId = regionRow.id;
+            const nodeName = body.name || 'Unknown';
 
-            let nodeError;
-            if (existingNode) {
-                // Reactivation path
-                ({ error: nodeError } = await supabase
-                    .from('nodes')
-                    .update({ status: 'active', name: body.name || 'Unknown', region_id: resolvedRegionId })
-                    .eq('stellar_address', onChainGatewayAddress));
+            if (existingRows.length > 0) {
+                await sql`
+                    UPDATE public.nodes
+                    SET status = 'active', name = ${nodeName}, region_id = ${resolvedRegionId}::uuid
+                    WHERE stellar_address = ${onChainGatewayAddress}
+                `;
             } else {
-                // New registration path
-                ({ error: nodeError } = await supabase
-                    .from('nodes')
-                    .insert({ stellar_address: onChainGatewayAddress, name: body.name || 'Unknown', region_id: resolvedRegionId, status: 'active', registered_by: adminRecord.id }));
+                await sql`
+                    INSERT INTO public.nodes (stellar_address, name, region_id, status, registered_by)
+                    VALUES (
+                        ${onChainGatewayAddress},
+                        ${nodeName},
+                        ${resolvedRegionId}::uuid,
+                        'active',
+                        ${adminRecord.id}::uuid
+                    )
+                `;
             }
 
-            if (nodeError) {
-                console.error('database error:', nodeError);
-                return NextResponse.json({ error: nodeError.message }, { status: 500 });
-            }
-
-            // ── Event-Driven Cache Invalidation ──
-            // Immediately queue a Horizon balance fetch for this node so it
-            // shows a real balance on the next dashboard poll (not '0.00').
-            // We need the node's DB id — fetch the freshly inserted/updated row.
-            const { data: syncedNode } = await supabase
-                .from('nodes')
-                .select('id')
-                .eq('stellar_address', onChainGatewayAddress)
-                .maybeSingle();
+            const syncedRows = await sql`
+                SELECT id
+                FROM public.nodes
+                WHERE stellar_address = ${onChainGatewayAddress}
+                LIMIT 1
+            `;
+            const syncedNode = syncedRows[0] as { id: string } | undefined;
 
             if (syncedNode?.id) {
-                // Fire-and-forget — do NOT await
                 triggerImmediateBalanceSync(syncedNode.id, onChainGatewayAddress);
             }
         } else {
-            // Soft-delete — mark node inactive, preserve the record
-            const { error: updateError } = await supabase
-                .from('nodes')
-                .update({ status: 'inactive' })
-                .eq('stellar_address', onChainGatewayAddress);
-
-            if (updateError) {
-                console.error('database error:', updateError);
-                return NextResponse.json({ error: updateError.message }, { status: 500 });
-            }
+            await sql`
+                UPDATE public.nodes
+                SET status = 'inactive'
+                WHERE stellar_address = ${onChainGatewayAddress}
+            `;
         }
 
         return NextResponse.json({ success: true }, { status: 200 });

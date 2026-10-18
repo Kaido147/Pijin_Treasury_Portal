@@ -1,6 +1,7 @@
 import { Keypair, WebAuth } from '@stellar/stellar-sdk';
 import { NextResponse } from 'next/server';
-import { createServiceClient, createClient } from '@/infrastructure/supabase/server';
+import { getSql } from '@/infrastructure/db/sql';
+import { getPortalUser } from '@/infrastructure/auth/session';
 import { cookies } from 'next/headers';
 import { SignJWT } from 'jose';
 import crypto from 'crypto';
@@ -12,19 +13,16 @@ const NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE ||
 
 export async function POST(request: Request) {
     try {
-        // ── GATE 1: Verify Supabase Identity Session (Using the Bouncer) ──
-        const userClient = await createClient();
-        const { data: { user }, error: userError } = await userClient.auth.getUser();
+        const user = await getPortalUser();
 
-        if (userError || !user) {
+        if (!user) {
             return NextResponse.json(
-                { error: 'Supabase session invalid or expired. Please log in again.' },
+                { error: 'Sign-in session invalid or expired. Please log in again.' },
                 { status: 401 }
             );
         }
 
-        // ── Create the Admin Database Client for wallet operations ──
-        const supabase = createServiceClient();
+        const sql = getSql();
 
         // ── Parse request body ──
         const { adminAddress, signedXdr } = await request.json();
@@ -36,17 +34,14 @@ export async function POST(request: Request) {
         // ── Generate Challenge Flow ──
         if (!signedXdr) {
             // Check the admin table first to ensure the user is an admin
-            const { data: adminData, error: adminError } = await supabase
-                .from('admin')
-                .select('id')
-                .eq('stellar_address', adminAddress)
-                .maybeSingle();
+            const adminRows = await sql`
+                SELECT id
+                FROM public.admin
+                WHERE stellar_address = ${adminAddress}
+                LIMIT 1
+            `;
 
-            if (adminError) {
-                console.error("❌ CRITICAL SUPABASE SERVER ERROR:", adminError.message, adminError.details);
-                return NextResponse.json({ error: adminError.message }, { status: 500 });
-            }
-            if (!adminData) {
+            if (adminRows.length === 0) {
                 return NextResponse.json({ error: 'Admin not found' }, { status: 404 });
             }
 
